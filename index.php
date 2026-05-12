@@ -2,7 +2,7 @@
 require_once __DIR__ . '/config.php';
 
 $pageTitle = 'AlaalaMo | Digital Memorial Space';
-$pageDescription = 'AlaalaMo helps families create private QR-access memorials so future generations can see the faces, stories, and memories behind a loved one’s name.';
+$pageDescription = 'AlaalaMo helps families create private QR-access memorials so future generations can see the faces, stories, and memories behind a loved oneâ€™s name.';
 $navItems = [
     ['label' => 'What it does', 'href' => '#what-it-does'],
     ['label' => 'Features', 'href' => '#features'],
@@ -116,7 +116,7 @@ $registrationFlash = get_flash();
   </head>
   <body>
     <header class="site-header" aria-label="Main navigation">
-      <a class="brand" href="/alaalamo/">
+      <a class="brand" href="/">
         <span class="brand-mark" aria-hidden="true">A</span>
         <span class="brand-highlight">AlaalaMo</span>
       </a>
@@ -287,7 +287,7 @@ $registrationFlash = get_flash();
     <footer class="site-footer">
       <div class="footer-content">
         <div>
-          <a class="footer-brand" href="/alaalamo/">
+          <a class="footer-brand" href="/">
             <span class="brand-mark" aria-hidden="true">A</span>
             <span class="brand-highlight">AlaalaMo</span>
           </a>
@@ -304,7 +304,8 @@ $registrationFlash = get_flash();
           <a href="login.php"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i> Login</a>
         </nav>
       </div>
-      <p class="footer-note">© <?= date('Y') ?> AlaalaMo. Memories made easier to revisit.</p>
+      <p class="footer-note">Â© <?= date('Y') ?> AlaalaMo. Memories made easier to revisit.</p>
     </footer>
   </body>
 </html>
+

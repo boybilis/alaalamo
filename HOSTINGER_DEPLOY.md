@@ -57,7 +57,7 @@ This creates `vendor/autoload.php`, which the OTP mailer uses.
 
 ## 4. Test flow
 
-1. Open `/alaalamo/`.
+1. Open `/`.
 2. Register with last name, given name, and email.
 3. Check email for OTP.
 4. Verify email. OTPs expire in 2 minutes.
@@ -82,3 +82,4 @@ The page is marked:
 
 This keeps it away from normal search indexing and prevents public browsing/listing.
 Important: a QR code still resolves to a URL, so anyone who receives the QR URL can open it. Stronger access control would require an additional PIN, logged-in viewer, or expiring viewer token.
+

@@ -4,7 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    redirect_to('/alaalamo/#signup');
+    redirect_to('/#signup');
 }
 
 $lastName = clean_input($_POST['last_name'] ?? '');
@@ -13,7 +13,7 @@ $email = strtolower(clean_input($_POST['email'] ?? ''));
 
 if ($lastName === '' || $givenName === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     flash('error', 'Please enter your last name, given name, and a valid email address.');
-    redirect_to('/alaalamo/#signup');
+    redirect_to('/#signup');
 }
 
 $pdo = db();
@@ -23,7 +23,7 @@ $user = $stmt->fetch();
 
 if ($user && $user['email_verified_at'] !== null) {
     flash('info', 'This email is already verified. Please log in with your email OTP.');
-    redirect_to('/alaalamo/login.php');
+    redirect_to('/login.php');
 }
 
 if ($user) {
@@ -40,8 +40,9 @@ $otp = create_otp($userId, 'registration');
 
 if (!send_otp_email($email, $otp, 'registration')) {
     flash('error', 'We saved your registration, but the OTP email could not be sent. Please check Hostinger SMTP and PHPMailer setup.');
-    redirect_to('/alaalamo/verify.php?email=' . urlencode($email));
+    redirect_to('/verify.php?email=' . urlencode($email));
 }
 
 flash('success', 'We sent a verification OTP to your email.');
-redirect_to('/alaalamo/verify.php?email=' . urlencode($email));
+redirect_to('/verify.php?email=' . urlencode($email));
+

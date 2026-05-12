@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         flash('error', 'Please enter a valid email address.');
-        redirect_to('/alaalamo/login.php');
+        redirect_to('/login.php');
     }
 
     $stmt = db()->prepare('SELECT * FROM users WHERE email = ? AND email_verified_at IS NOT NULL LIMIT 1');
@@ -19,18 +19,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$user) {
         flash('error', 'No verified account found for that email.');
-        redirect_to('/alaalamo/login.php');
+        redirect_to('/login.php');
     }
 
     $otp = create_otp((int) $user['id'], 'login');
 
     if (!send_otp_email($email, $otp, 'login')) {
         flash('error', 'The login OTP could not be sent. Please check Hostinger SMTP and PHPMailer setup.');
-        redirect_to('/alaalamo/login.php');
+        redirect_to('/login.php');
     }
 
     flash('success', 'We sent a login OTP to your email.');
-    redirect_to('/alaalamo/login-verify.php?email=' . urlencode($email));
+    redirect_to('/login-verify.php?email=' . urlencode($email));
 }
 ?>
 <!doctype html>
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </head>
   <body class="auth-page">
     <main class="auth-card">
-      <a class="brand auth-brand" href="/alaalamo/">
+      <a class="brand auth-brand" href="/">
         <span class="brand-mark" aria-hidden="true">A</span>
         <span class="brand-highlight">AlaalaMo</span>
       </a>
@@ -61,7 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </label>
         <button class="button-primary" type="submit">Send Login OTP</button>
       </form>
-      <a class="auth-link" href="/alaalamo/#signup">Create an account</a>
+      <a class="auth-link" href="/#signup">Create an account</a>
     </main>
   </body>
 </html>
+

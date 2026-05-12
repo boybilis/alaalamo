@@ -224,7 +224,7 @@ if ($milestones) {
     <div class="story-modal" aria-hidden="true">
       <div class="story-modal-backdrop"></div>
       <section class="story-modal-panel" role="dialog" aria-modal="true" aria-label="Life story narration">
-        <button class="story-modal-close" type="button" aria-label="Close life story">×</button>
+        <button class="story-modal-close" type="button" aria-label="Close life story">Ã—</button>
         <div class="story-modal-media">
           <img class="story-modal-image" src="" alt="">
         </div>
@@ -317,3 +317,4 @@ if ($milestones) {
     </script>
   </body>
 </html>
+

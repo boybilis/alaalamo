@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$user || $otp === '') {
         flash('error', 'Invalid email or OTP.');
-        redirect_to('/alaalamo/login-verify.php?email=' . urlencode($email));
+        redirect_to('/login-verify.php?email=' . urlencode($email));
     }
 
     $stmt = db()->prepare(
@@ -29,14 +29,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$otpRecord || new DateTimeImmutable($otpRecord['expires_at']) < new DateTimeImmutable()) {
         flash('error', 'Your login OTP has expired. Please request a new one.');
-        redirect_to('/alaalamo/login.php');
+        redirect_to('/login.php');
     }
 
     if ((int) $otpRecord['attempts'] >= 5 || !password_verify($otp, $otpRecord['otp_hash'])) {
         db()->prepare('UPDATE email_otps SET attempts = attempts + 1 WHERE id = ?')
             ->execute([(int) $otpRecord['id']]);
         flash('error', 'The OTP you entered is incorrect.');
-        redirect_to('/alaalamo/login-verify.php?email=' . urlencode($email));
+        redirect_to('/login-verify.php?email=' . urlencode($email));
     }
 
     db()->prepare('UPDATE email_otps SET consumed_at = NOW() WHERE id = ?')
@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_SESSION['user_id'] = (int) $user['id'];
     $_SESSION['user_email'] = $user['email'];
 
-    redirect_to('/alaalamo/dashboard.php');
+    redirect_to('/dashboard.php');
 }
 ?>
 <!doctype html>
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </head>
   <body class="auth-page">
     <main class="auth-card">
-      <a class="brand auth-brand" href="/alaalamo/">
+      <a class="brand auth-brand" href="/">
         <span class="brand-mark" aria-hidden="true">A</span>
         <span class="brand-highlight">AlaalaMo</span>
       </a>
@@ -77,7 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </label>
         <button class="button-primary" type="submit">Continue to Dashboard</button>
       </form>
-      <a class="auth-link" href="/alaalamo/login.php">Request a new OTP</a>
+      <a class="auth-link" href="/login.php">Request a new OTP</a>
     </main>
   </body>
 </html>
+

@@ -6,7 +6,7 @@ require __DIR__ . '/config.php';
 start_app_session();
 
 if (empty($_SESSION['user_id'])) {
-    redirect_to('/alaalamo/login.php');
+    redirect_to('/login.php');
 }
 
 $pdo = db();
@@ -16,7 +16,7 @@ $user = $stmt->fetch();
 
 if (!$user) {
     session_destroy();
-    redirect_to('/alaalamo/login.php');
+    redirect_to('/login.php');
 }
 
 function uploaded_file_at(array $files, int $index): array
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($formAction === 'generate_ai_story') {
         if (!openai_is_configured()) {
             flash('error', 'OpenAI API key is not configured yet. Add it in config.php before generating the premium life story.');
-            redirect_to('/alaalamo/dashboard.php?memorial_id=' . $memorialIdInput);
+            redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
         }
 
         $stmt = $pdo->prepare('SELECT * FROM memorials WHERE id = ? AND user_id = ? AND qr_group_id = ? LIMIT 1');
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$memorialForAi) {
             flash('error', 'Please save the memorial profile before generating the AI life story.');
-            redirect_to('/alaalamo/dashboard.php');
+            redirect_to('/dashboard.php');
         }
 
         $stmt = $pdo->prepare('SELECT * FROM milestones WHERE memorial_id = ? ORDER BY sort_order ASC, id ASC');
@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$milestonesForAi) {
             flash('error', 'Please add and save at least one milestone before generating the AI life story.');
-            redirect_to('/alaalamo/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
+            redirect_to('/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
         }
 
         $instructions = 'You write solemn, warm, respectful memorial prose for Filipino families. Do not invent facts. Use only the provided details. Avoid overly dramatic language. Keep the tone gentle, dignified, and easy to understand.';
@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$autobiography) {
             flash('error', 'The autobiography could not be generated. Please try again after checking the OpenAI API key.');
-            redirect_to('/alaalamo/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
+            redirect_to('/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
         }
 
         $pdo->prepare('UPDATE memorials SET autobiography_text = ?, autobiography_generated_at = NOW() WHERE id = ?')
@@ -103,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         flash('success', 'Premium AI autobiography and milestone narration text were generated and saved.');
-        redirect_to('/alaalamo/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
+        redirect_to('/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
     }
 
     $lovedOneName = clean_input($_POST['loved_one_name'] ?? '');
@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($lovedOneName === '') {
         flash('error', 'Please enter the name of the loved one for the memorial profile.');
-        redirect_to('/alaalamo/dashboard.php');
+        redirect_to('/dashboard.php');
     }
 
     $pdo->beginTransaction();
@@ -232,12 +232,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $pdo->commit();
         flash('success', 'Memorial details saved. Your QR preview is ready.');
-        redirect_to('/alaalamo/dashboard.php?memorial_id=' . $memorialId);
+        redirect_to('/dashboard.php?memorial_id=' . $memorialId);
     } catch (Throwable $exception) {
         $pdo->rollBack();
         error_log('Memorial save failed: ' . $exception->getMessage());
         flash('error', 'The memorial could not be saved. Please try again.');
-        redirect_to('/alaalamo/dashboard.php');
+        redirect_to('/dashboard.php');
     }
 }
 
@@ -286,11 +286,11 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
-      <a class="brand auth-brand" href="/alaalamo/">
+      <a class="brand auth-brand" href="/">
         <span class="brand-mark" aria-hidden="true">A</span>
         <span class="brand-highlight">AlaalaMo</span>
       </a>
-      <a class="auth-link" href="/alaalamo/logout.php">Logout</a>
+      <a class="auth-link" href="/logout.php">Logout</a>
     </header>
 
     <main class="dashboard-layout">
@@ -342,12 +342,12 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
           <?php if ($memorials): ?>
             <div class="dashboard-memorial-list">
               <?php foreach ($memorials as $item): ?>
-                <a class="<?= $memorial && (int) $memorial['id'] === (int) $item['id'] ? 'is-active' : '' ?>" href="/alaalamo/dashboard.php?memorial_id=<?= (int) $item['id'] ?>">
+                <a class="<?= $memorial && (int) $memorial['id'] === (int) $item['id'] ? 'is-active' : '' ?>" href="/dashboard.php?memorial_id=<?= (int) $item['id'] ?>">
                   <?= htmlspecialchars($item['loved_one_name'], ENT_QUOTES, 'UTF-8') ?>
                 </a>
               <?php endforeach; ?>
               <?php if (count($memorials) < MAX_MEMORIALS_PER_QR): ?>
-                <a href="/alaalamo/dashboard.php?new=1">+ Add memorial</a>
+                <a href="/dashboard.php?new=1">+ Add memorial</a>
               <?php endif; ?>
             </div>
           <?php endif; ?>
@@ -446,3 +446,4 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
     </main>
   </body>
 </html>
+

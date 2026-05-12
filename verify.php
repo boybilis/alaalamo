@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$user || $otp === '') {
         flash('error', 'Invalid email or OTP.');
-        redirect_to('/alaalamo/verify.php?email=' . urlencode($email));
+        redirect_to('/verify.php?email=' . urlencode($email));
     }
 
     $stmt = db()->prepare(
@@ -28,14 +28,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$otpRecord || new DateTimeImmutable($otpRecord['expires_at']) < new DateTimeImmutable()) {
         flash('error', 'Your OTP has expired. Please register again to request a new OTP.');
-        redirect_to('/alaalamo/verify.php?email=' . urlencode($email));
+        redirect_to('/verify.php?email=' . urlencode($email));
     }
 
     if ((int) $otpRecord['attempts'] >= 5 || !password_verify($otp, $otpRecord['otp_hash'])) {
         db()->prepare('UPDATE email_otps SET attempts = attempts + 1 WHERE id = ?')
             ->execute([(int) $otpRecord['id']]);
         flash('error', 'The OTP you entered is incorrect.');
-        redirect_to('/alaalamo/verify.php?email=' . urlencode($email));
+        redirect_to('/verify.php?email=' . urlencode($email));
     }
 
     db()->prepare('UPDATE email_otps SET consumed_at = NOW() WHERE id = ?')
@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ->execute([(int) $user['id']]);
 
     flash('success', 'Your email is verified. You can now log in.');
-    redirect_to('/alaalamo/login.php');
+    redirect_to('/login.php');
 }
 ?>
 <!doctype html>
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </head>
   <body class="auth-page">
     <main class="auth-card">
-      <a class="brand auth-brand" href="/alaalamo/">
+      <a class="brand auth-brand" href="/">
         <span class="brand-mark" aria-hidden="true">A</span>
         <span class="brand-highlight">AlaalaMo</span>
       </a>
@@ -76,7 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </label>
         <button class="button-primary" type="submit">Verify Email</button>
       </form>
-      <a class="auth-link" href="/alaalamo/#signup">Use another email</a>
+      <a class="auth-link" href="/#signup">Use another email</a>
     </main>
   </body>
 </html>
+
