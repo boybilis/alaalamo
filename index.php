@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/config.php';
+
 $pageTitle = 'AlaalaMo | Digital Memorial Space';
 $pageDescription = 'AlaalaMo helps families create private QR-access memorials so future generations can see the faces, stories, and memories behind a loved one’s name.';
 $navItems = [
@@ -91,6 +93,7 @@ $pricingPlans = [
         'featured' => true,
     ],
 ];
+$registrationFlash = get_flash();
 ?>
 <!doctype html>
 <html lang="en">
@@ -250,10 +253,20 @@ $pricingPlans = [
             </p>
           </div>
 
-          <form class="signup-form" action="#" method="post">
+          <?php if ($registrationFlash): ?>
+            <p class="auth-alert auth-alert-<?= htmlspecialchars($registrationFlash['type'], ENT_QUOTES, 'UTF-8') ?>">
+              <?= htmlspecialchars($registrationFlash['message'], ENT_QUOTES, 'UTF-8') ?>
+            </p>
+          <?php endif; ?>
+
+          <form class="signup-form" action="register.php" method="post">
             <label>
-              Your name
-              <input type="text" name="contact_name" autocomplete="name" required>
+              Last name
+              <input type="text" name="last_name" autocomplete="family-name" required>
+            </label>
+            <label>
+              Given name
+              <input type="text" name="given_name" autocomplete="given-name" required>
             </label>
             <label>
               Email address

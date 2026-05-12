@@ -1,0 +1,9 @@
+{
+  "name": "alaalamo/memorial-app",
+  "description": "AlaalaMo QR memorial webapp",
+  "type": "project",
+  "require": {
+    "php": ">=8.1",
+    "phpmailer/phpmailer": "^6.10"
+  }
+}
