@@ -41,6 +41,26 @@ function nested_uploaded_file_at(array $files, int $groupIndex, int $fileIndex):
     ];
 }
 
+function extract_ai_story_payload(string $text): ?array
+{
+    $clean = trim($text);
+    $clean = preg_replace('/^```json\s*/i', '', $clean) ?? $clean;
+    $clean = preg_replace('/^```\s*/', '', $clean) ?? $clean;
+    $clean = preg_replace('/\s*```$/', '', $clean) ?? $clean;
+    $decoded = json_decode($clean, true);
+
+    if (is_array($decoded)) {
+        return $decoded;
+    }
+
+    if (preg_match('/\{.*\}/s', $clean, $matches)) {
+        $decoded = json_decode($matches[0], true);
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    return null;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $formAction = clean_input($_POST['form_action'] ?? 'save_memorial');
     $memorialIdInput = (int) ($_POST['memorial_id'] ?? 0);
@@ -72,37 +92,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $instructions = 'You write solemn, warm, respectful memorial prose for Filipino families. Do not invent facts. Use only the provided details. Avoid overly dramatic language. Keep the tone gentle, dignified, and easy to understand.';
         $context = build_memorial_context($memorialForAi, $milestonesForAi);
-        $autobiography = openai_text_response(
+        $storyJson = openai_text_response(
             $instructions,
-            $context . "\n\nWrite a cohesive first-person autobiography of about 500 to 800 words, as if the loved one is gently telling the story of their life to future generations."
+            $context . "\n\nReturn only valid JSON with this exact structure: {\"autobiography\":\"...\",\"milestones\":[{\"id\":123,\"narration\":\"...\"}]}. The autobiography should be 500 to 800 words in first person. Each milestone narration should be 45 to 75 seconds when spoken. Use the actual milestone id values from this list:\n" . json_encode(array_map(static fn(array $milestone): array => [
+                'id' => (int) $milestone['id'],
+                'title' => $milestone['title'],
+                'date' => $milestone['milestone_date'],
+                'description' => $milestone['description'],
+            ], $milestonesForAi), JSON_UNESCAPED_UNICODE)
         );
+        $storyPayload = $storyJson ? extract_ai_story_payload($storyJson) : null;
+        $autobiography = is_array($storyPayload) ? clean_input((string) ($storyPayload['autobiography'] ?? '')) : '';
 
         if (!$autobiography) {
-            flash('error', 'The autobiography could not be generated. Please try again after checking the OpenAI API key.');
+            flash('error', 'The AI life story could not be generated. Check OpenAI key, billing, cURL support, and Hostinger error logs.');
             redirect_to('/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
         }
 
         $pdo->prepare('UPDATE memorials SET autobiography_text = ?, autobiography_generated_at = NOW() WHERE id = ?')
             ->execute([$autobiography, (int) $memorialForAi['id']]);
 
-        foreach ($milestonesForAi as $milestoneForAi) {
-            $narration = openai_text_response(
-                $instructions,
-                "Loved one: {$memorialForAi['loved_one_name']}\nMilestone title: {$milestoneForAi['title']}\nDate or period: {$milestoneForAi['milestone_date']}\nDetails: {$milestoneForAi['description']}\n\nWrite a 45 to 75 second solemn narration for this milestone. Speak as a gentle narrator, not as a salesperson."
-            );
+        $narrationsById = [];
+        foreach (($storyPayload['milestones'] ?? []) as $generatedMilestone) {
+            $generatedId = (int) ($generatedMilestone['id'] ?? 0);
+            $generatedText = clean_input((string) ($generatedMilestone['narration'] ?? ''));
 
-            if (!$narration) {
-                continue;
+            if ($generatedId > 0 && $generatedText !== '') {
+                $narrationsById[$generatedId] = $generatedText;
             }
+        }
+
+        $savedNarrations = 0;
+        foreach ($milestonesForAi as $milestoneForAi) {
+            $narration = $narrationsById[(int) $milestoneForAi['id']] ?? clean_input((string) ($milestoneForAi['description'] ?? ''));
 
             $pdo->prepare(
                 'UPDATE milestones
                  SET ai_narration_text = ?, narration_audio_path = NULL, narration_generated_at = NOW()
                  WHERE id = ?'
             )->execute([$narration, (int) $milestoneForAi['id']]);
+            $savedNarrations++;
         }
 
-        flash('success', 'Premium AI autobiography and milestone narration text were generated and saved.');
+        flash('success', 'Premium AI autobiography and ' . $savedNarrations . ' milestone narration text entries were generated and saved.');
         redirect_to('/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
     }
 
