@@ -1267,10 +1267,19 @@ h2 {
 }
 
 .story-modal-image {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transform: scale(1.035);
+  transition: opacity 1200ms ease, transform 5200ms ease;
+}
+
+.story-modal-image.is-active {
   opacity: 0.96;
+  transform: scale(1);
 }
 
 .story-modal-copy {

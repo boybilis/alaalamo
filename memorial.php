@@ -226,7 +226,8 @@ if ($milestones) {
       <section class="story-modal-panel" role="dialog" aria-modal="true" aria-label="Life story narration">
         <button class="story-modal-close" type="button" aria-label="Close life story">Ã—</button>
         <div class="story-modal-media">
-          <img class="story-modal-image" src="" alt="">
+          <img class="story-modal-image story-modal-image-a is-active" src="" alt="">
+          <img class="story-modal-image story-modal-image-b" src="" alt="">
         </div>
         <div class="story-modal-copy">
           <p class="section-eyebrow story-modal-step">Life story</p>
@@ -240,12 +241,13 @@ if ($milestones) {
       const playButton = document.querySelector('.story-play-button');
       const milestones = Array.from(document.querySelectorAll('.preview-milestone'));
       const modal = document.querySelector('.story-modal');
-      const modalImage = document.querySelector('.story-modal-image');
+      const modalImages = Array.from(document.querySelectorAll('.story-modal-image'));
       const modalTitle = document.querySelector('.story-modal-title');
       const modalText = document.querySelector('.story-modal-text');
       const modalStep = document.querySelector('.story-modal-step');
       const modalClose = document.querySelector('.story-modal-close');
       let slideTimer = null;
+      let activeModalImage = 0;
 
       function stopNarration() {
         window.speechSynthesis?.cancel();
@@ -259,13 +261,23 @@ if ($milestones) {
 
       function runSlideshow(images) {
         clearInterval(slideTimer);
-        if (!modalImage || !images.length) return;
+        if (!modalImages.length || !images.length) return;
 
         let index = 0;
-        modalImage.src = images[index];
+        activeModalImage = 0;
+        modalImages.forEach((image, imageIndex) => {
+          image.classList.toggle('is-active', imageIndex === 0);
+          image.src = imageIndex === 0 ? images[index] : '';
+        });
+
         slideTimer = setInterval(() => {
           index = (index + 1) % images.length;
-          modalImage.src = images[index];
+          const nextImage = modalImages[activeModalImage === 0 ? 1 : 0];
+          const currentImage = modalImages[activeModalImage];
+          nextImage.src = images[index];
+          nextImage.classList.add('is-active');
+          currentImage.classList.remove('is-active');
+          activeModalImage = activeModalImage === 0 ? 1 : 0;
         }, 5200);
       }
 
