@@ -5,6 +5,79 @@ require __DIR__ . '/config.php';
 
 start_app_session();
 
+if (!defined('GEMINI_API_KEY')) {
+    define('GEMINI_API_KEY', '');
+}
+
+if (!defined('GEMINI_TEXT_MODEL')) {
+    define('GEMINI_TEXT_MODEL', 'gemini-2.5-flash');
+}
+
+if (!function_exists('gemini_is_configured')) {
+    function gemini_is_configured(): bool
+    {
+        return GEMINI_API_KEY !== '' && GEMINI_API_KEY !== 'replace-with-gemini-api-key';
+    }
+}
+
+if (!function_exists('gemini_text_response')) {
+    function gemini_text_response(string $instructions, string $input): ?string
+    {
+        if (!gemini_is_configured() || !function_exists('curl_init')) {
+            return null;
+        }
+
+        $payload = json_encode([
+            'system_instruction' => [
+                'parts' => [
+                    ['text' => $instructions],
+                ],
+            ],
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => [
+                        ['text' => $input],
+                    ],
+                ],
+            ],
+        ]);
+
+        $curl = curl_init('https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode(GEMINI_TEXT_MODEL) . ':generateContent');
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                'x-goog-api-key: ' . GEMINI_API_KEY,
+                'Content-Type: application/json',
+            ],
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_TIMEOUT => 90,
+        ]);
+
+        $response = curl_exec($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $error = curl_error($curl);
+        curl_close($curl);
+
+        if ($response === false || $status < 200 || $status >= 300) {
+            error_log('Gemini text generation failed: HTTP ' . $status . ' ' . $error . ' ' . (string) $response);
+            return null;
+        }
+
+        $data = json_decode($response, true);
+        $parts = [];
+
+        foreach (($data['candidates'][0]['content']['parts'] ?? []) as $part) {
+            if (isset($part['text']) && is_string($part['text'])) {
+                $parts[] = $part['text'];
+            }
+        }
+
+        return $parts ? trim(implode("\n", $parts)) : null;
+    }
+}
+
 if (empty($_SESSION['user_id'])) {
     redirect_to('/login.php');
 }
@@ -199,15 +272,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to('/dashboard.php?memorial_id=' . (int) $messageForAction['memorial_id'] . '#messages-admin');
     }
 
-    if ($formAction === 'generate_ai_story') {
+    if ($formAction === 'generate_milestone_ai') {
         if (!$planLimits['life_story']) {
-            flash('error', 'Premium Life Story is available only on premium plans.');
-            redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
+            json_response(['ok' => false, 'message' => 'Enhanced autobiography is available only on premium plans.'], 403);
         }
 
-        if (!openai_is_configured()) {
-            flash('error', 'OpenAI API key is not configured yet. Add it in config.php before generating the premium life story.');
-            redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
+        if (!gemini_is_configured()) {
+            json_response(['ok' => false, 'message' => 'Gemini API key is not configured yet in config.php.'], 422);
+        }
+
+        $milestoneIdInput = (int) ($_POST['milestone_id'] ?? 0);
+        $title = clean_input($_POST['title'] ?? '');
+        $milestoneDate = clean_input($_POST['milestone_date'] ?? '');
+        $description = clean_input($_POST['description'] ?? '');
+
+        if ($milestoneIdInput <= 0 || $memorialIdInput <= 0) {
+            json_response(['ok' => false, 'message' => 'Save this milestone first before generating enhanced text.'], 422);
         }
 
         $stmt = $pdo->prepare('SELECT * FROM memorials WHERE id = ? AND user_id = ? AND qr_group_id = ? LIMIT 1');
@@ -215,65 +295,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $memorialForAi = $stmt->fetch();
 
         if (!$memorialForAi) {
-            flash('error', 'Please save the memorial profile before generating the AI life story.');
-            redirect_to('/dashboard.php');
+            json_response(['ok' => false, 'message' => 'Memorial profile was not found.'], 404);
         }
 
-        $stmt = $pdo->prepare('SELECT * FROM milestones WHERE memorial_id = ? ORDER BY sort_order ASC, id ASC');
-        $stmt->execute([(int) $memorialForAi['id']]);
-        $milestonesForAi = $stmt->fetchAll();
+        $stmt = $pdo->prepare('SELECT * FROM milestones WHERE id = ? AND memorial_id = ? LIMIT 1');
+        $stmt->execute([$milestoneIdInput, (int) $memorialForAi['id']]);
+        $milestoneForAi = $stmt->fetch();
 
-        if (!$milestonesForAi) {
-            flash('error', 'Please add and save at least one milestone before generating the AI life story.');
-            redirect_to('/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
+        if (!$milestoneForAi) {
+            json_response(['ok' => false, 'message' => 'Milestone was not found. Save it first, then try again.'], 404);
+        }
+
+        if ($title === '') {
+            $title = clean_input((string) ($milestoneForAi['title'] ?? ''));
+        }
+
+        if ($milestoneDate === '') {
+            $milestoneDate = clean_input((string) ($milestoneForAi['milestone_date'] ?? ''));
+        }
+
+        if ($description === '') {
+            $description = clean_input((string) ($milestoneForAi['description'] ?? ''));
+        }
+
+        if ($title === '' || $description === '') {
+            json_response(['ok' => false, 'message' => 'Add a title and description before generating enhanced text.'], 422);
         }
 
         $instructions = 'You write simple, heartfelt, respectful memorial prose for Filipino families. Do not invent facts. Use only the provided details. Avoid flowery, overly dramatic, or complicated language. Make every sentence easy to understand, sincere, and emotionally meaningful.';
-        $context = build_memorial_context($memorialForAi, $milestonesForAi);
-        $storyJson = openai_text_response(
+        $prompt = implode("\n", [
+            'Loved one: ' . ($memorialForAi['loved_one_name'] ?? ''),
+            'Birth date: ' . ($memorialForAi['birth_date'] ?? ''),
+            'Death date: ' . ($memorialForAi['death_date'] ?? ''),
+            'Resting place: ' . ($memorialForAi['resting_place'] ?? ''),
+            'Memorial description: ' . ($memorialForAi['short_description'] ?? ''),
+            '',
+            'Milestone title: ' . $title,
+            'Milestone date or period: ' . $milestoneDate,
+            'Milestone details: ' . $description,
+            '',
+            'Rewrite this single milestone as an enhanced autobiography narration. Write in first person as if the loved one is gently speaking to their family. Keep it solemn, warm, and natural. Do not mention that this was generated by AI. Return plain text only, about 120 to 180 words.',
+        ]);
+        $generatedText = gemini_text_response(
             $instructions,
-            $context . "\n\nReturn only valid JSON with this exact structure: {\"autobiography\":\"...\",\"milestones\":[{\"id\":123,\"narration\":\"...\"}]}. The autobiography should be simple but impactful, about 250 to 400 words, written in first person as if the loved one is gently speaking to their family. Focus on love, family, values, memories, and legacy. Each milestone narration should be short, solemn, and natural, about 30 to 45 seconds when spoken. Use the actual milestone id values from this list:\n" . json_encode(array_map(static fn(array $milestone): array => [
-                'id' => (int) $milestone['id'],
-                'title' => $milestone['title'],
-                'date' => $milestone['milestone_date'],
-                'description' => $milestone['description'],
-            ], $milestonesForAi), JSON_UNESCAPED_UNICODE)
+            $prompt
         );
-        $storyPayload = $storyJson ? extract_ai_story_payload($storyJson) : null;
-        $autobiography = is_array($storyPayload) ? clean_input((string) ($storyPayload['autobiography'] ?? '')) : '';
+        $generatedText = $generatedText ? trim($generatedText) : '';
 
-        if (!$autobiography) {
-            flash('error', 'The AI life story could not be generated. Check OpenAI key, billing, cURL support, and Hostinger error logs.');
-            redirect_to('/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
+        if ($generatedText === '') {
+            json_response(['ok' => false, 'message' => 'Enhanced text could not be generated. Check Gemini key, quota, cURL support, and Hostinger error logs.'], 422);
         }
 
-        $pdo->prepare('UPDATE memorials SET autobiography_text = ?, autobiography_generated_at = NOW() WHERE id = ?')
-            ->execute([$autobiography, (int) $memorialForAi['id']]);
+        json_response([
+            'ok' => true,
+            'message' => 'Enhanced autobiography generated. Review it before saving.',
+            'text' => $generatedText,
+        ]);
+    }
 
-        $narrationsById = [];
-        foreach (($storyPayload['milestones'] ?? []) as $generatedMilestone) {
-            $generatedId = (int) ($generatedMilestone['id'] ?? 0);
-            $generatedText = clean_input((string) ($generatedMilestone['narration'] ?? ''));
-
-            if ($generatedId > 0 && $generatedText !== '') {
-                $narrationsById[$generatedId] = $generatedText;
-            }
+    if ($formAction === 'save_milestone_ai') {
+        if (!$planLimits['life_story']) {
+            json_response(['ok' => false, 'message' => 'Enhanced autobiography is available only on premium plans.'], 403);
         }
 
-        $savedNarrations = 0;
-        foreach ($milestonesForAi as $milestoneForAi) {
-            $narration = $narrationsById[(int) $milestoneForAi['id']] ?? clean_input((string) ($milestoneForAi['description'] ?? ''));
+        $milestoneIdInput = (int) ($_POST['milestone_id'] ?? 0);
+        $generatedText = trim((string) ($_POST['generated_text'] ?? ''));
 
-            $pdo->prepare(
-                'UPDATE milestones
-                 SET ai_narration_text = ?, narration_audio_path = NULL, narration_generated_at = NOW()
-                 WHERE id = ?'
-            )->execute([$narration, (int) $milestoneForAi['id']]);
-            $savedNarrations++;
+        if ($milestoneIdInput <= 0 || $memorialIdInput <= 0 || $generatedText === '') {
+            json_response(['ok' => false, 'message' => 'Generated text is required before saving.'], 422);
         }
 
-        flash('success', 'Premium AI autobiography and ' . $savedNarrations . ' milestone narration text entries were generated and saved.');
-        redirect_to('/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
+        $stmt = $pdo->prepare(
+            'SELECT m.*
+             FROM milestones m
+             INNER JOIN memorials me ON me.id = m.memorial_id
+             WHERE m.id = ? AND m.memorial_id = ? AND me.user_id = ? AND me.qr_group_id = ?
+             LIMIT 1'
+        );
+        $stmt->execute([$milestoneIdInput, $memorialIdInput, (int) $user['id'], (int) $qrGroup['id']]);
+
+        if (!$stmt->fetch()) {
+            json_response(['ok' => false, 'message' => 'Milestone was not found.'], 404);
+        }
+
+        $pdo->prepare(
+            'UPDATE milestones
+             SET ai_narration_text = ?, narration_audio_path = NULL, narration_generated_at = NOW()
+             WHERE id = ? AND memorial_id = ?'
+        )->execute([$generatedText, $milestoneIdInput, $memorialIdInput]);
+
+        json_response([
+            'ok' => true,
+            'message' => 'Enhanced autobiography saved for this milestone.',
+            'text' => $generatedText,
+        ]);
     }
 
     if ($formAction === 'delete_image') {
@@ -783,7 +898,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-37') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-38') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
@@ -983,6 +1098,19 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
                   <textarea name="milestone_description[]" data-milestone-description rows="3" maxlength="<?= $planLimits['milestone_characters'] ?>" placeholder="What happened in this chapter of their life?"><?= htmlspecialchars($milestone['description'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
                   <span class="field-note">Maximum <?= $planLimits['milestone_characters'] ?> characters.</span>
                 </label>
+                <?php if ($planLimits['life_story']): ?>
+                  <div class="milestone-ai-panel form-full">
+                    <div>
+                      <strong>Enhanced autobiography</strong>
+                      <span data-ai-saved-text>
+                        <?= !empty($milestone['ai_narration_text']) ? htmlspecialchars($milestone['ai_narration_text'], ENT_QUOTES, 'UTF-8') : 'No enhanced text saved yet.' ?>
+                      </span>
+                    </div>
+                    <button class="button-primary milestone-ai-button" type="button" data-generate-milestone-ai <?= $milestone ? '' : 'disabled' ?>>
+                      Generate Enhanced Autobiography
+                    </button>
+                  </div>
+                <?php endif; ?>
                 <label class="form-full">
                   Milestone images
                   <?php if ($milestone): ?>
@@ -1087,26 +1215,20 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
         </section>
       <?php endif; ?>
 
-      <?php if ($memorial && $planLimits['life_story']): ?>
-        <form class="memorial-form ai-story-form" method="post" action="dashboard.php">
-          <input type="hidden" name="form_action" value="generate_ai_story">
-          <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
-          <section class="form-section">
-            <h2>Premium AI Life Story</h2>
-            <p>
-              Generate and save a solemn autobiography plus narration text for each milestone.
-              The mobile view will narrate the saved text using the visitor's device voice and
-              show the milestone images in a full-screen slideshow.
-            </p>
-            <?php if (!openai_is_configured()): ?>
-              <p class="auth-alert auth-alert-error">OpenAI API key is not configured yet in config.php.</p>
-            <?php elseif (!empty($memorial['autobiography_text'])): ?>
-              <p class="auth-alert auth-alert-success">AI life story has already been generated. You may regenerate it after editing milestones.</p>
-            <?php endif; ?>
-            <button class="button-primary form-submit" type="submit">Generate Premium Life Story</button>
-          </section>
-        </form>
-      <?php endif; ?>
+      <div class="ai-result-modal" data-ai-modal aria-hidden="true">
+        <div class="ai-result-backdrop" data-ai-modal-close></div>
+        <div class="ai-result-panel" role="dialog" aria-modal="true" aria-labelledby="aiResultTitle">
+          <button class="ai-result-close" type="button" data-ai-modal-close aria-label="Close">&times;</button>
+          <h2 id="aiResultTitle">Enhanced Autobiography</h2>
+          <p class="field-note">Review the generated text. You can edit it before saving it to this milestone.</p>
+          <textarea data-ai-generated-text rows="10"></textarea>
+          <div class="ai-result-actions">
+            <button class="button-secondary" type="button" data-ai-modal-close>Cancel</button>
+            <button class="button-primary" type="button" data-save-milestone-ai>Save to Milestone</button>
+          </div>
+          <span class="milestone-ajax-status" data-ai-modal-status></span>
+        </div>
+      </div>
     </main>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script>
@@ -1121,6 +1243,36 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
         function ajaxErrorMessage(xhr, fallback) {
           return (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : fallback;
         }
+
+        let activeAiMilestoneBox = null;
+        const $aiModal = $('[data-ai-modal]');
+        const $aiText = $('[data-ai-generated-text]');
+        const $aiStatus = $('[data-ai-modal-status]');
+        const $aiSaveButton = $('[data-save-milestone-ai]');
+
+        function openEnhancedTextModal($box, text) {
+          activeAiMilestoneBox = $box;
+          $aiText.val(text || '');
+          $aiStatus.removeClass('is-success is-error').text('');
+          $aiModal.addClass('is-open').attr('aria-hidden', 'false');
+          $aiText.trigger('focus');
+        }
+
+        function closeAiModal() {
+          $aiModal.removeClass('is-open').attr('aria-hidden', 'true');
+          $aiText.val('');
+          $aiStatus.removeClass('is-success is-error').text('');
+          activeAiMilestoneBox = null;
+          $aiSaveButton.prop('disabled', false);
+        }
+
+        $('[data-ai-modal-close]').on('click', closeAiModal);
+
+        $(document).on('keydown', function (event) {
+          if (event.key === 'Escape' && $aiModal.hasClass('is-open')) {
+            closeAiModal();
+          }
+        });
 
         $('[data-get-location]').on('click', function () {
           const $button = $(this);
@@ -1178,13 +1330,87 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
             }
           }).done(function (response) {
             $box.find('[data-milestone-id]').val(response.milestone_id);
-            $box.find('[data-milestone-images], [data-upload-milestone], [data-delete-milestone]').prop('disabled', false);
+            $box.find('[data-milestone-images], [data-upload-milestone], [data-delete-milestone], [data-generate-milestone-ai]').prop('disabled', false);
             $box.find('[data-milestone-images]').siblings('.field-note').text('Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. This upload will not change the QR code.');
             setStatus($box, response.message || 'Milestone saved.', 'success');
           }).fail(function (xhr) {
             setStatus($box, ajaxErrorMessage(xhr, 'Milestone could not be saved.'), 'error');
           }).always(function () {
             $button.prop('disabled', false);
+          });
+        });
+
+        $('[data-generate-milestone-ai]').on('click', function () {
+          const $button = $(this);
+          const $box = $button.closest('[data-milestone-box]');
+          const milestoneId = $box.find('[data-milestone-id]').val();
+
+          if (!milestoneId || milestoneId === '0') {
+            setStatus($box, 'Save this milestone first.', 'error');
+            return;
+          }
+
+          $button.prop('disabled', true);
+          setStatus($box, 'Generating enhanced autobiography...', 'success');
+
+          $.ajax({
+            url: 'dashboard.php',
+            method: 'POST',
+            dataType: 'json',
+            data: {
+              ajax: '1',
+              form_action: 'generate_milestone_ai',
+              memorial_id: memorialId,
+              milestone_id: milestoneId,
+              title: $box.find('[data-milestone-title]').val(),
+              milestone_date: $box.find('[data-milestone-date]').val(),
+              description: $box.find('[data-milestone-description]').val()
+            }
+          }).done(function (response) {
+            setStatus($box, response.message || 'Enhanced autobiography generated.', 'success');
+            openEnhancedTextModal($box, response.text || '');
+          }).fail(function (xhr) {
+            setStatus($box, ajaxErrorMessage(xhr, 'Enhanced autobiography could not be generated.'), 'error');
+          }).always(function () {
+            $button.prop('disabled', false);
+          });
+        });
+
+        $aiSaveButton.on('click', function () {
+          if (!activeAiMilestoneBox) {
+            return;
+          }
+
+          const $box = activeAiMilestoneBox;
+          const milestoneId = $box.find('[data-milestone-id]').val();
+          const text = $aiText.val().trim();
+
+          if (!text) {
+            $aiStatus.removeClass('is-success').addClass('is-error').text('Generated text cannot be empty.');
+            return;
+          }
+
+          $aiSaveButton.prop('disabled', true);
+          $aiStatus.removeClass('is-error').addClass('is-success').text('Saving...');
+
+          $.ajax({
+            url: 'dashboard.php',
+            method: 'POST',
+            dataType: 'json',
+            data: {
+              ajax: '1',
+              form_action: 'save_milestone_ai',
+              memorial_id: memorialId,
+              milestone_id: milestoneId,
+              generated_text: text
+            }
+          }).done(function (response) {
+            $box.find('[data-ai-saved-text]').text(response.text || text);
+            setStatus($box, response.message || 'Enhanced autobiography saved.', 'success');
+            closeAiModal();
+          }).fail(function (xhr) {
+            $aiStatus.removeClass('is-success').addClass('is-error').text(ajaxErrorMessage(xhr, 'Enhanced autobiography could not be saved.'));
+            $aiSaveButton.prop('disabled', false);
           });
         });
 
@@ -1268,7 +1494,8 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
             $box.find('[data-milestone-id]').val('0');
             $box.find('[data-milestone-title], [data-milestone-date], [data-milestone-description]').val('');
             $box.find('[data-milestone-images]').val('').prop('disabled', true);
-            $box.find('[data-upload-milestone], [data-delete-milestone]').prop('disabled', true);
+            $box.find('[data-upload-milestone], [data-delete-milestone], [data-generate-milestone-ai]').prop('disabled', true);
+            $box.find('[data-ai-saved-text]').text('No enhanced text saved yet.');
             $box.find('[data-milestone-preview]').html('<p>No milestone images yet.</p>');
             $box.find('.field-note').text('Save this milestone first, then upload images for it.');
             setStatus($box, response.message || 'Milestone deleted.', 'success');

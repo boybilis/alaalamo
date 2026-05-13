@@ -3,28 +3,42 @@ declare(strict_types=1);
 
 require __DIR__ . '/config.php';
 
+if (!defined('GEMINI_API_KEY')) {
+    define('GEMINI_API_KEY', '');
+}
+
+if (!defined('GEMINI_TEXT_MODEL')) {
+    define('GEMINI_TEXT_MODEL', 'gemini-2.5-flash');
+}
+
 header('Content-Type: text/plain; charset=UTF-8');
 
 echo "AlaalaMo AI diagnostics\n";
-echo "OpenAI key configured: " . (openai_is_configured() ? 'yes' : 'no') . "\n";
+echo "Gemini key configured: " . (GEMINI_API_KEY !== '' && GEMINI_API_KEY !== 'replace-with-gemini-api-key' ? 'yes' : 'no') . "\n";
 echo "PHP cURL enabled: " . (function_exists('curl_init') ? 'yes' : 'no') . "\n";
-echo "OpenAI model: " . OPENAI_TEXT_MODEL . "\n";
+echo "Gemini model: " . GEMINI_TEXT_MODEL . "\n";
 
-if (!openai_is_configured() || !function_exists('curl_init')) {
+if (GEMINI_API_KEY === '' || GEMINI_API_KEY === 'replace-with-gemini-api-key' || !function_exists('curl_init')) {
     exit;
 }
 
 $payload = json_encode([
-    'model' => OPENAI_TEXT_MODEL,
-    'input' => 'Reply with exactly: OK',
+    'contents' => [
+        [
+            'role' => 'user',
+            'parts' => [
+                ['text' => 'Reply with exactly: OK'],
+            ],
+        ],
+    ],
 ]);
 
-$curl = curl_init('https://api.openai.com/v1/responses');
+$curl = curl_init('https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode(GEMINI_TEXT_MODEL) . ':generateContent');
 curl_setopt_array($curl, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
     CURLOPT_HTTPHEADER => [
-        'Authorization: Bearer ' . OPENAI_API_KEY,
+        'x-goog-api-key: ' . GEMINI_API_KEY,
         'Content-Type: application/json',
     ],
     CURLOPT_POSTFIELDS => $payload,
@@ -40,23 +54,30 @@ echo "HTTP status: " . $status . "\n";
 echo "cURL error: " . ($error ?: 'none') . "\n";
 
 if ($response === false) {
-    echo "OpenAI response: no response\n";
+    echo "Gemini response: no response\n";
     exit;
 }
 
 $decoded = json_decode($response, true);
+$parts = [];
 
-if (isset($decoded['output_text'])) {
-    echo "OpenAI output_text: " . $decoded['output_text'] . "\n";
+foreach (($decoded['candidates'][0]['content']['parts'] ?? []) as $part) {
+    if (isset($part['text']) && is_string($part['text'])) {
+        $parts[] = $part['text'];
+    }
+}
+
+if ($parts) {
+    echo "Gemini output: " . trim(implode("\n", $parts)) . "\n";
     exit;
 }
 
 if (isset($decoded['error'])) {
-    echo "OpenAI error type: " . ($decoded['error']['type'] ?? 'unknown') . "\n";
-    echo "OpenAI error code: " . ($decoded['error']['code'] ?? 'none') . "\n";
-    echo "OpenAI error message: " . ($decoded['error']['message'] ?? 'none') . "\n";
+    echo "Gemini error code: " . ($decoded['error']['code'] ?? 'none') . "\n";
+    echo "Gemini error status: " . ($decoded['error']['status'] ?? 'unknown') . "\n";
+    echo "Gemini error message: " . ($decoded['error']['message'] ?? 'none') . "\n";
     exit;
 }
 
-echo "OpenAI raw response:\n";
+echo "Gemini raw response:\n";
 echo substr($response, 0, 2000) . "\n";

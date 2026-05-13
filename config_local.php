@@ -22,6 +22,8 @@ const MAX_MILESTONES = 5;
 const MAX_MILESTONE_IMAGES = 3;
 const MAX_MEMORIALS_PER_QR = 5;
 const ADDITIONAL_MEMORIAL_PRICE = 700;
+const GEMINI_API_KEY = '';
+const GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
 const OPENAI_API_KEY = '';
 const OPENAI_TEXT_MODEL = 'gpt-5-mini';
 const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
@@ -145,6 +147,67 @@ function store_uploaded_image(array $file, string $subdirectory): ?string
 function openai_is_configured(): bool
 {
     return OPENAI_API_KEY !== '' && OPENAI_API_KEY !== 'replace-with-openai-api-key';
+}
+
+function gemini_is_configured(): bool
+{
+    return GEMINI_API_KEY !== '' && GEMINI_API_KEY !== 'replace-with-gemini-api-key';
+}
+
+function gemini_text_response(string $instructions, string $input): ?string
+{
+    if (!gemini_is_configured() || !function_exists('curl_init')) {
+        return null;
+    }
+
+    $payload = json_encode([
+        'system_instruction' => [
+            'parts' => [
+                ['text' => $instructions],
+            ],
+        ],
+        'contents' => [
+            [
+                'role' => 'user',
+                'parts' => [
+                    ['text' => $input],
+                ],
+            ],
+        ],
+    ]);
+
+    $curl = curl_init('https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode(GEMINI_TEXT_MODEL) . ':generateContent');
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'x-goog-api-key: ' . GEMINI_API_KEY,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_TIMEOUT => 90,
+    ]);
+
+    $response = curl_exec($curl);
+    $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    $error = curl_error($curl);
+    curl_close($curl);
+
+    if ($response === false || $status < 200 || $status >= 300) {
+        error_log('Gemini text generation failed: HTTP ' . $status . ' ' . $error . ' ' . (string) $response);
+        return null;
+    }
+
+    $data = json_decode($response, true);
+    $parts = [];
+
+    foreach (($data['candidates'][0]['content']['parts'] ?? []) as $part) {
+        if (isset($part['text']) && is_string($part['text'])) {
+            $parts[] = $part['text'];
+        }
+    }
+
+    return $parts ? trim(implode("\n", $parts)) : null;
 }
 
 function openai_text_response(string $instructions, string $input): ?string
