@@ -523,7 +523,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-44') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-45') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -651,7 +651,7 @@ $messageFlash = get_flash();
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-44') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-45') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -867,16 +867,11 @@ $messageFlash = get_flash();
       <div class="image-lightbox-backdrop"></div>
       <section class="image-lightbox-panel" role="dialog" aria-modal="true" aria-label="Image preview">
         <button class="image-lightbox-close" type="button" aria-label="Close image preview">&times;</button>
-        <button class="image-lightbox-nav image-lightbox-prev" type="button" aria-label="Previous image">
-          <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
-        </button>
         <img class="image-lightbox-img" src="" alt="">
-        <button class="image-lightbox-nav image-lightbox-next" type="button" aria-label="Next image">
-          <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-        </button>
         <div class="image-lightbox-copy" hidden>
           <p class="image-lightbox-caption"></p>
           <p class="image-lightbox-credit"></p>
+          <p class="image-lightbox-hint">Swipe left or right to browse images.</p>
         </div>
       </section>
     </div>
@@ -996,8 +991,6 @@ $messageFlash = get_flash();
       const imageLightboxCaption = document.querySelector('.image-lightbox-caption');
       const imageLightboxCredit = document.querySelector('.image-lightbox-credit');
       const imageLightboxClose = document.querySelector('.image-lightbox-close');
-      const imageLightboxPrev = document.querySelector('.image-lightbox-prev');
-      const imageLightboxNext = document.querySelector('.image-lightbox-next');
       const lightboxImages = Array.from(document.querySelectorAll('[data-lightbox-src]'));
       let activeLightboxIndex = -1;
       let lightboxTouchStartX = 0;
@@ -1178,8 +1171,6 @@ $messageFlash = get_flash();
         if (imageLightboxCaption) imageLightboxCaption.textContent = caption;
         if (imageLightboxCredit) imageLightboxCredit.textContent = credit ? `Shared by ${credit}` : '';
         if (imageLightboxCopy) imageLightboxCopy.hidden = !caption && !credit;
-        if (imageLightboxPrev) imageLightboxPrev.hidden = lightboxImages.length < 2;
-        if (imageLightboxNext) imageLightboxNext.hidden = lightboxImages.length < 2;
       }
 
       document.addEventListener('click', (event) => {
@@ -1193,8 +1184,6 @@ $messageFlash = get_flash();
         imageLightbox?.setAttribute('aria-hidden', 'false');
       });
 
-      imageLightboxPrev?.addEventListener('click', () => showLightboxImage(activeLightboxIndex - 1));
-      imageLightboxNext?.addEventListener('click', () => showLightboxImage(activeLightboxIndex + 1));
       imageLightbox?.addEventListener('touchstart', (event) => {
         lightboxTouchStartX = event.touches[0]?.clientX || 0;
       }, { passive: true });
