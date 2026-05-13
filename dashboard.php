@@ -63,6 +63,17 @@ function delete_uploaded_asset(?string $relativePath): void
     }
 }
 
+function clean_hex_color(string $value, string $fallback): string
+{
+    $color = trim($value);
+
+    if (preg_match('/^#[0-9a-fA-F]{6}$/', $color)) {
+        return strtolower($color);
+    }
+
+    return $fallback;
+}
+
 function is_ajax_request(): bool
 {
     return ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest'
@@ -431,6 +442,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $restingPlace = clean_input($_POST['resting_place'] ?? '');
     $memorialQuote = clean_input($_POST['memorial_quote'] ?? '');
     $shortDescription = clean_input($_POST['short_description'] ?? '');
+    $themePrimary = clean_hex_color($_POST['theme_primary'] ?? '', '#214c63');
+    $themeSecondary = clean_hex_color($_POST['theme_secondary'] ?? '', '#eadcc8');
+    $themeTertiary = clean_hex_color($_POST['theme_tertiary'] ?? '', '#fbfaf7');
 
     if ($lovedOneName === '') {
         flash('error', 'Please enter the name of the loved one for the memorial profile.');
@@ -449,7 +463,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token = $memorial['public_token'];
             $pdo->prepare(
                 'UPDATE memorials
-                 SET loved_one_name = ?, birth_date = ?, death_date = ?, resting_place = ?, memorial_quote = ?, short_description = ?, status = "published"
+                 SET loved_one_name = ?, birth_date = ?, death_date = ?, resting_place = ?, memorial_quote = ?, short_description = ?, theme_primary = ?, theme_secondary = ?, theme_tertiary = ?, status = "published"
                  WHERE id = ?'
             )->execute([
                 $lovedOneName,
@@ -458,6 +472,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $restingPlace !== '' ? $restingPlace : null,
                 $memorialQuote !== '' ? $memorialQuote : null,
                 $shortDescription !== '' ? $shortDescription : null,
+                $themePrimary,
+                $themeSecondary,
+                $themeTertiary,
                 $memorialId,
             ]);
         } else {
@@ -472,8 +489,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token = generate_token();
             $pdo->prepare(
                 'INSERT INTO memorials
-                 (user_id, qr_group_id, public_token, loved_one_name, birth_date, death_date, resting_place, memorial_quote, short_description, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "published")'
+                 (user_id, qr_group_id, public_token, loved_one_name, birth_date, death_date, resting_place, memorial_quote, short_description, theme_primary, theme_secondary, theme_tertiary, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "published")'
             )->execute([
                 (int) $user['id'],
                 (int) $qrGroup['id'],
@@ -484,6 +501,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $restingPlace !== '' ? $restingPlace : null,
                 $memorialQuote !== '' ? $memorialQuote : null,
                 $shortDescription !== '' ? $shortDescription : null,
+                $themePrimary,
+                $themeSecondary,
+                $themeTertiary,
             ]);
             $memorialId = (int) $pdo->lastInsertId();
         }
@@ -613,7 +633,7 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-4') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-7') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
@@ -712,6 +732,27 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
               Short description
               <textarea name="short_description" rows="4" placeholder="A gentle introduction to who they were."><?= htmlspecialchars($memorial['short_description'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
             </label>
+            <div class="theme-picker form-full">
+              <div>
+                <h3>Memorial color theme</h3>
+                <p>Choose the colors used on the QR memorial page.</p>
+              </div>
+              <label>
+                Primary
+                <input type="color" name="theme_primary" value="<?= htmlspecialchars($memorial['theme_primary'] ?? '#214c63', ENT_QUOTES, 'UTF-8') ?>">
+                <span class="field-note">Main background and headings</span>
+              </label>
+              <label>
+                Secondary
+                <input type="color" name="theme_secondary" value="<?= htmlspecialchars($memorial['theme_secondary'] ?? '#eadcc8', ENT_QUOTES, 'UTF-8') ?>">
+                <span class="field-note">Buttons and quote line</span>
+              </label>
+              <label>
+                Tertiary
+                <input type="color" name="theme_tertiary" value="<?= htmlspecialchars($memorial['theme_tertiary'] ?? '#fbfaf7', ENT_QUOTES, 'UTF-8') ?>">
+                <span class="field-note">Page background</span>
+              </label>
+            </div>
             <label class="form-full">
               Profile images
               <input type="file" name="profile_images[]" accept="image/jpeg,image/png,image/webp" multiple>

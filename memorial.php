@@ -61,9 +61,9 @@ if ($isGroupView): ?>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
     <title>Family Memorials | AlaalaMo</title>
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-4') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-7') ?>">
   </head>
-  <body class="memorial-preview-page">
+  <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial">
       <section class="mobile-memorial-header">
         <p class="section-eyebrow">Family tribute</p>
@@ -94,6 +94,9 @@ if ($isGroupView): ?>
           <?php endforeach; ?>
         </div>
       </section>
+      <footer class="mobile-memorial-footer">
+        <a href="https://alaalamo.site" target="_blank" rel="noopener">All rights reserved AlaalaMo</a>
+      </footer>
     </main>
   </body>
 </html>
@@ -122,6 +125,19 @@ if ($milestones) {
         $milestoneImages[(int) $milestone['id']] = $imageStmt->fetchAll();
     }
 }
+
+$themePrimary = preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($memorial['theme_primary'] ?? ''))
+    ? strtolower((string) $memorial['theme_primary'])
+    : '#214c63';
+$themeSecondary = preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($memorial['theme_secondary'] ?? ''))
+    ? strtolower((string) $memorial['theme_secondary'])
+    : '#eadcc8';
+$themeTertiary = preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($memorial['theme_tertiary'] ?? ''))
+    ? strtolower((string) $memorial['theme_tertiary'])
+    : '#fbfaf7';
+$themeStyle = '--memorial-primary: ' . htmlspecialchars($themePrimary, ENT_QUOTES, 'UTF-8')
+    . '; --memorial-secondary: ' . htmlspecialchars($themeSecondary, ENT_QUOTES, 'UTF-8')
+    . '; --memorial-tertiary: ' . htmlspecialchars($themeTertiary, ENT_QUOTES, 'UTF-8') . ';';
 ?>
 <!doctype html>
 <html lang="en">
@@ -131,10 +147,10 @@ if ($milestones) {
     <meta name="robots" content="noindex,nofollow">
     <title><?= htmlspecialchars($memorial['loved_one_name'], ENT_QUOTES, 'UTF-8') ?> | AlaalaMo Memorial</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-4') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-7') ?>">
   </head>
   <body class="memorial-preview-page">
-    <main class="mobile-memorial mx-auto">
+    <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
       <section class="mobile-memorial-cover d-flex align-items-end">
         <?php if ($images): ?>
           <div class="profile-cover-slideshow" aria-hidden="true">
@@ -227,6 +243,9 @@ if ($milestones) {
           <?php endforeach; ?>
         </section>
       <?php endif; ?>
+      <footer class="mobile-memorial-footer">
+        <a href="https://alaalamo.site" target="_blank" rel="noopener">All rights reserved AlaalaMo</a>
+      </footer>
     </main>
     <div class="story-modal" aria-hidden="true">
       <div class="story-modal-backdrop"></div>
