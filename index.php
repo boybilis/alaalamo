@@ -112,7 +112,7 @@ $registrationFlash = get_flash();
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
     >
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-1') ?>">
   </head>
   <body>
     <header class="site-header" aria-label="Main navigation">
@@ -237,6 +237,26 @@ $registrationFlash = get_flash();
                 <a class="plan-link" href="#signup">Choose <?= htmlspecialchars($plan['name'], ENT_QUOTES, 'UTF-8') ?> <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
               </article>
             <?php endforeach; ?>
+          </div>
+        </div>
+      </section>
+
+      <section class="founder-section" aria-labelledby="founder-title">
+        <div class="founder-content">
+          <div class="founder-mark">
+            <img src="assets/founder-joseph-aramil.jpeg" alt="Joseph Michael Aramil, founder of AlaalaMo">
+          </div>
+          <div>
+            <p class="section-eyebrow">Founder story</p>
+            <h2 id="founder-title">Built from memory, by someone who understands loss.</h2>
+            <p class="section-quote">
+              <strong>Joseph Michael Aramil</strong>, founder of the <strong>AlaalaMo</strong>
+              startup, has been a freelance web developer since 2010 and an educator
+              committed to building useful digital tools. Inspired by the passing of
+              his father, he pursued and created <strong>AlaalaMo</strong> as a way for
+              families to preserve the faces, stories, and memories that should not
+              fade with time.
+            </p>
           </div>
         </div>
       </section>

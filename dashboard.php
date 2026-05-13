@@ -90,11 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect_to('/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
         }
 
-        $instructions = 'You write solemn, warm, respectful memorial prose for Filipino families. Do not invent facts. Use only the provided details. Avoid overly dramatic language. Keep the tone gentle, dignified, and easy to understand.';
+        $instructions = 'You write simple, heartfelt, respectful memorial prose for Filipino families. Do not invent facts. Use only the provided details. Avoid flowery, overly dramatic, or complicated language. Make every sentence easy to understand, sincere, and emotionally meaningful.';
         $context = build_memorial_context($memorialForAi, $milestonesForAi);
         $storyJson = openai_text_response(
             $instructions,
-            $context . "\n\nReturn only valid JSON with this exact structure: {\"autobiography\":\"...\",\"milestones\":[{\"id\":123,\"narration\":\"...\"}]}. The autobiography should be 500 to 800 words in first person. Each milestone narration should be 45 to 75 seconds when spoken. Use the actual milestone id values from this list:\n" . json_encode(array_map(static fn(array $milestone): array => [
+            $context . "\n\nReturn only valid JSON with this exact structure: {\"autobiography\":\"...\",\"milestones\":[{\"id\":123,\"narration\":\"...\"}]}. The autobiography should be simple but impactful, about 250 to 400 words, written in first person as if the loved one is gently speaking to their family. Focus on love, family, values, memories, and legacy. Each milestone narration should be short, solemn, and natural, about 30 to 45 seconds when spoken. Use the actual milestone id values from this list:\n" . json_encode(array_map(static fn(array $milestone): array => [
                 'id' => (int) $milestone['id'],
                 'title' => $milestone['title'],
                 'date' => $milestone['milestone_date'],
@@ -324,7 +324,7 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-1') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">

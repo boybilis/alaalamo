@@ -26,6 +26,7 @@ const OPENAI_API_KEY = '';
 const OPENAI_TEXT_MODEL = 'gpt-5-mini';
 const OPENAI_TTS_MODEL = 'gpt-4o-mini-tts';
 const OPENAI_TTS_VOICE = 'ash';
+const ASSET_VERSION = '20260513-1';
 
 function db(): PDO
 {

@@ -27,6 +27,7 @@ a { color: inherit; text-decoration: none; }
 .what-section,
 .features-section,
 .pricing-section,
+.founder-section,
 .signup-section {
   border-top: 1px solid rgba(33, 76, 99, 0.1);
 }
@@ -34,6 +35,7 @@ a { color: inherit; text-decoration: none; }
 .what-section::before,
 .features-section::before,
 .pricing-section::before,
+.founder-section::before,
 .signup-section::before {
   content: "";
   position: absolute;
@@ -531,6 +533,62 @@ h2 {
   font-size: 13px;
 }
 
+.founder-section {
+  position: relative;
+  overflow: hidden;
+  padding: 88px 20px;
+  background:
+    linear-gradient(120deg, rgba(15, 39, 64, 0.96), rgba(33, 76, 99, 0.92)),
+    var(--accent-dark);
+  color: var(--white);
+}
+
+.founder-section::before {
+  background: linear-gradient(90deg, var(--beige), rgba(255, 255, 255, 0.28), transparent);
+}
+
+.founder-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+  width: min(980px, 100%);
+  margin: 0 auto;
+}
+
+.founder-mark {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  padding: 4px;
+  background: var(--beige);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+}
+
+.founder-mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center 34%;
+}
+
+.founder-section h2,
+.founder-section .section-quote {
+  color: var(--white);
+}
+
+.founder-section .section-quote {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.founder-section .section-eyebrow {
+  color: var(--beige);
+}
+
 .plan-link {
   display: inline-flex;
   align-items: center;
@@ -983,10 +1041,10 @@ h2 {
   margin: 0;
 }
 
-.milestone-image-preview img {
-  width: 150px;
-  max-width: 100%;
-  aspect-ratio: 1 / 1;
+.milestone-box .milestone-image-preview img {
+  width: 150px !important;
+  height: 150px !important;
+  max-width: 150px;
   object-fit: cover;
   border: 3px solid var(--white);
   border-radius: 8px;
@@ -1366,6 +1424,9 @@ h2 {
   .pricing-grid,
   .signup-content,
   .signup-form { grid-template-columns: 1fr; }
+  .founder-section { padding: 68px 12px; }
+  .founder-content { grid-template-columns: 1fr; gap: 22px; }
+  .founder-mark { width: 76px; height: 76px; }
   .signup-steps { grid-template-columns: 1fr 1fr; }
   .pricing-card,
   .signup-form { padding: 24px; }
