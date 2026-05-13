@@ -1676,12 +1676,11 @@ h2 {
 .messages-love-track {
   display: flex;
   gap: 12px;
-  width: max-content;
-  animation: messagesLoveScroll 28s linear infinite;
-}
-
-.messages-love-carousel:hover .messages-love-track {
-  animation-play-state: paused;
+  overflow-x: auto;
+  padding: 2px 2px 12px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .message-love-card {
@@ -1690,6 +1689,7 @@ h2 {
   max-width: calc(430px - 56px);
   min-height: 150px;
   padding: 14px;
+  scroll-snap-align: start;
   border: 1px solid rgba(31, 41, 51, 0.12);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.72);
@@ -1716,15 +1716,6 @@ h2 {
   font-size: 13px;
 }
 
-@keyframes messagesLoveScroll {
-  from {
-    transform: translateX(0);
-  }
-
-  to {
-    transform: translateX(calc(-50% - 6px));
-  }
-}
 
 .message-love-modal {
   border: 0;
