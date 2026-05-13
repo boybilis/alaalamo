@@ -759,7 +759,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-35') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-36') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
