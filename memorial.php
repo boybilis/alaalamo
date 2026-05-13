@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 require __DIR__ . '/config.php';
 
-$token = clean_input($_GET['t'] ?? '');
+start_app_session();
+
+$token = clean_input($_GET['t'] ?? $_POST['token'] ?? '');
 
 if ($token === '' || !preg_match('/^[a-f0-9]{64}$/', $token)) {
     http_response_code(404);
@@ -85,6 +87,54 @@ function qr_plan_limits(?array $qrGroup): array
     ];
 }
 
+function send_memorial_message_otp(string $email, string $otp, string $lovedOneName): bool
+{
+    $autoloadPath = __DIR__ . '/vendor/autoload.php';
+
+    if (!is_file($autoloadPath)) {
+        error_log('PHPMailer is not installed for memorial message OTP.');
+        return false;
+    }
+
+    require_once $autoloadPath;
+
+    $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+    $subject = 'Your AlaalaMo message OTP';
+    $safeName = htmlspecialchars($lovedOneName, ENT_QUOTES, 'UTF-8');
+    $safeOtp = htmlspecialchars($otp, ENT_QUOTES, 'UTF-8');
+
+    try {
+        $mail->isSMTP();
+        $mail->Host = SMTP_HOST;
+        $mail->SMTPAuth = true;
+        $mail->Username = SMTP_USERNAME;
+        $mail->Password = SMTP_PASSWORD;
+        $mail->SMTPSecure = SMTP_ENCRYPTION === 'tls'
+            ? \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS
+            : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+        $mail->Port = SMTP_PORT;
+        $mail->CharSet = 'UTF-8';
+        $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
+        $mail->addAddress($email);
+        $mail->Subject = $subject;
+        $mail->isHTML(true);
+        $mail->Body = '
+            <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #1f2933;">
+                <h1 style="color:#214c63;">AlaalaMo message verification</h1>
+                <p style="font-size:16px; line-height:1.6;">Use this OTP to submit your message of love for ' . $safeName . '.</p>
+                <p style="font-size:34px; font-weight:800; letter-spacing:6px; color:#214c63; background:#f5eee4; padding:18px 22px; border-radius:8px; text-align:center;">' . $safeOtp . '</p>
+                <p style="font-size:14px; color:#5f6975;">This code expires in 1 minute. Your message will appear only after family approval.</p>
+            </div>
+        ';
+        $mail->AltBody = "Your AlaalaMo message OTP is {$otp}. It expires in 1 minute.";
+
+        return $mail->send();
+    } catch (Throwable $exception) {
+        error_log('Memorial message OTP email failed: ' . $exception->getMessage());
+        return false;
+    }
+}
+
 $pdo = db();
 $stmt = $pdo->prepare('SELECT * FROM qr_groups WHERE public_token = ? LIMIT 1');
 $stmt->execute([$token]);
@@ -116,7 +166,7 @@ if ($qrGroup) {
     }
 }
 
-$selectedId = (int) ($_GET['m'] ?? 0);
+$selectedId = (int) ($_GET['m'] ?? $_POST['memorial_id'] ?? 0);
 
 if ($selectedId > 0 && $qrGroup) {
     foreach ($memorials as $candidate) {
@@ -131,6 +181,99 @@ if ($selectedId > 0 && $qrGroup) {
 $themeStyle = memorial_theme_style($memorial);
 $planLimits = qr_plan_limits($qrGroup ?: null);
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isGroupView) {
+    $formAction = clean_input($_POST['form_action'] ?? '');
+    $memorialIdInput = (int) ($_POST['memorial_id'] ?? 0);
+
+    if ($memorialIdInput !== (int) $memorial['id']) {
+        flash('error', 'The memorial message could not be submitted.');
+        redirect_to('/memorial.php?t=' . urlencode($token));
+    }
+
+    if ($formAction === 'request_message_otp') {
+        $senderName = clean_input($_POST['sender_name'] ?? '');
+        $senderEmail = strtolower(clean_input($_POST['sender_email'] ?? ''));
+        $messageText = clean_input($_POST['message'] ?? '');
+
+        if ($senderName === '' || !filter_var($senderEmail, FILTER_VALIDATE_EMAIL) || $messageText === '') {
+            flash('error', 'Please enter your name, email, and message.');
+            redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#messages');
+        }
+
+        $messageText = substr($messageText, 0, 700);
+        $otp = generate_otp();
+        $expiresAt = (new DateTimeImmutable('+1 minute'))->format('Y-m-d H:i:s');
+
+        $pdo->prepare(
+            'UPDATE memorial_message_otps
+             SET consumed_at = NOW()
+             WHERE memorial_id = ? AND sender_email = ? AND consumed_at IS NULL'
+        )->execute([(int) $memorial['id'], $senderEmail]);
+
+        $pdo->prepare(
+            'INSERT INTO memorial_message_otps
+             (memorial_id, sender_name, sender_email, message, otp_hash, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        )->execute([
+            (int) $memorial['id'],
+            $senderName,
+            $senderEmail,
+            $messageText,
+            password_hash($otp, PASSWORD_DEFAULT),
+            $expiresAt,
+        ]);
+
+        if (!send_memorial_message_otp($senderEmail, $otp, (string) $memorial['loved_one_name'])) {
+            flash('error', 'The OTP email could not be sent. Please try again later.');
+            redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#messages');
+        }
+
+        flash('success', 'We sent a 1-minute OTP to your email. Enter it to submit your message for approval.');
+        redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '&verify_message=1&message_email=' . urlencode($senderEmail) . '#messages');
+    }
+
+    if ($formAction === 'verify_message_otp') {
+        $senderEmail = strtolower(clean_input($_POST['sender_email'] ?? ''));
+        $otp = clean_input($_POST['otp'] ?? '');
+
+        $stmt = $pdo->prepare(
+            'SELECT *
+             FROM memorial_message_otps
+             WHERE memorial_id = ? AND sender_email = ? AND consumed_at IS NULL
+             ORDER BY id DESC
+             LIMIT 1'
+        );
+        $stmt->execute([(int) $memorial['id'], $senderEmail]);
+        $pendingOtp = $stmt->fetch();
+
+        if (!$pendingOtp || (int) $pendingOtp['attempts'] >= 5 || strtotime((string) $pendingOtp['expires_at']) < time() || !password_verify($otp, (string) $pendingOtp['otp_hash'])) {
+            if ($pendingOtp) {
+                $pdo->prepare('UPDATE memorial_message_otps SET attempts = attempts + 1 WHERE id = ?')
+                    ->execute([(int) $pendingOtp['id']]);
+            }
+
+            flash('error', 'Invalid or expired OTP. Please request a new one.');
+            redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '&verify_message=1&message_email=' . urlencode($senderEmail) . '#messages');
+        }
+
+        $pdo->prepare(
+            'INSERT INTO memorial_messages (memorial_id, sender_name, sender_email, message)
+             VALUES (?, ?, ?, ?)'
+        )->execute([
+            (int) $memorial['id'],
+            $pendingOtp['sender_name'],
+            $pendingOtp['sender_email'],
+            $pendingOtp['message'],
+        ]);
+
+        $pdo->prepare('UPDATE memorial_message_otps SET consumed_at = NOW() WHERE id = ?')
+            ->execute([(int) $pendingOtp['id']]);
+
+        flash('success', 'Your message was submitted. It will appear after family approval.');
+        redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#messages');
+    }
+}
+
 if ($isGroupView): ?>
 <!doctype html>
 <html lang="en">
@@ -142,7 +285,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-29') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-34') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -238,6 +381,16 @@ if ($milestones) {
     }
 }
 
+$stmt = $pdo->prepare(
+    'SELECT *
+     FROM memorial_messages
+     WHERE memorial_id = ? AND status = "approved"
+     ORDER BY approved_at DESC, id DESC'
+);
+$stmt->execute([(int) $memorial['id']]);
+$approvedMessages = $stmt->fetchAll();
+$messageFlash = get_flash();
+
 ?>
 <!doctype html>
 <html lang="en">
@@ -251,7 +404,7 @@ if ($milestones) {
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-29') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-34') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -369,6 +522,33 @@ if ($milestones) {
           <?php endforeach; ?>
         </section>
       <?php endif; ?>
+      <section class="mobile-memorial-section" id="messages">
+        <div class="messages-love-head">
+          <h2>Messages of Love</h2>
+          <button class="btn btn-light btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#messageLoveModal">
+            Leave a Message
+          </button>
+        </div>
+        <?php if ($messageFlash): ?>
+          <p class="auth-alert auth-alert-<?= htmlspecialchars($messageFlash['type'], ENT_QUOTES, 'UTF-8') ?>">
+            <?= htmlspecialchars($messageFlash['message'], ENT_QUOTES, 'UTF-8') ?>
+          </p>
+        <?php endif; ?>
+        <div class="messages-love-carousel">
+          <?php if ($approvedMessages): ?>
+            <div class="messages-love-track">
+              <?php foreach (array_merge($approvedMessages, $approvedMessages) as $loveMessage): ?>
+                <article class="message-love-card">
+                  <p>&ldquo;<?= nl2br(htmlspecialchars($loveMessage['message'], ENT_QUOTES, 'UTF-8')) ?>&rdquo;</p>
+                  <strong><?= htmlspecialchars($loveMessage['sender_name'], ENT_QUOTES, 'UTF-8') ?></strong>
+                </article>
+              <?php endforeach; ?>
+            </div>
+          <?php else: ?>
+            <p class="field-note">No approved messages yet. Be the first to leave one for the family to review.</p>
+          <?php endif; ?>
+        </div>
+      </section>
       <footer class="mobile-memorial-footer">
         <span>All Rights Reserved @ 2026</span>
         <a href="https://alaalamo.site" target="_blank" rel="noopener">AlaalaMo</a>
@@ -395,6 +575,54 @@ if ($milestones) {
         <button class="image-lightbox-close" type="button" aria-label="Close image preview">&times;</button>
         <img class="image-lightbox-img" src="" alt="">
       </section>
+    </div>
+    <div class="modal fade" id="messageLoveModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content message-love-modal">
+          <div class="modal-header">
+            <h2 class="modal-title"><?= isset($_GET['verify_message']) ? 'Enter OTP' : 'Leave a Message' ?></h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <?php if (isset($_GET['verify_message'])): ?>
+              <form method="post" action="memorial.php?t=<?= urlencode($token) ?>&m=<?= (int) $memorial['id'] ?>#messages">
+                <input type="hidden" name="form_action" value="verify_message_otp">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+                <label>
+                  Email address
+                  <input class="form-control" type="email" name="sender_email" value="<?= htmlspecialchars($_GET['message_email'] ?? '', ENT_QUOTES, 'UTF-8') ?>" required>
+                </label>
+                <label class="mt-3">
+                  OTP
+                  <input class="form-control" type="text" name="otp" inputmode="numeric" maxlength="6" required>
+                </label>
+                <button class="btn btn-primary w-100 mt-3" type="submit">Submit Message for Approval</button>
+              </form>
+            <?php else: ?>
+              <form method="post" action="memorial.php?t=<?= urlencode($token) ?>&m=<?= (int) $memorial['id'] ?>#messages">
+                <input type="hidden" name="form_action" value="request_message_otp">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+                <label>
+                  Your name
+                  <input class="form-control" type="text" name="sender_name" maxlength="120" required>
+                </label>
+                <label class="mt-3">
+                  Email address
+                  <input class="form-control" type="email" name="sender_email" required>
+                </label>
+                <label class="mt-3">
+                  Message
+                  <textarea class="form-control" name="message" rows="4" maxlength="700" required></textarea>
+                </label>
+                <p class="field-note mt-2">We will send a 1-minute OTP before submitting. Messages appear only after family approval.</p>
+                <button class="btn btn-primary w-100 mt-3" type="submit">Send OTP</button>
+              </form>
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -580,6 +808,12 @@ if ($milestones) {
           closeImageLightbox();
         }
       });
+      <?php if (isset($_GET['verify_message'])): ?>
+        const messageModal = document.getElementById('messageLoveModal');
+        if (messageModal && window.bootstrap) {
+          bootstrap.Modal.getOrCreateInstance(messageModal).show();
+        }
+      <?php endif; ?>
       window.addEventListener('beforeunload', stopNarration);
     </script>
   </body>

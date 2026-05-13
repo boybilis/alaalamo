@@ -151,6 +151,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $planLimits = qr_plan_limits($qrGroup);
     $isAjax = is_ajax_request();
 
+    if ($formAction === 'approve_message' || $formAction === 'delete_message') {
+        $messageId = (int) ($_POST['message_id'] ?? 0);
+
+        $stmt = $pdo->prepare(
+            'SELECT mm.*, me.id AS memorial_id
+             FROM memorial_messages mm
+             INNER JOIN memorials me ON me.id = mm.memorial_id
+             WHERE mm.id = ? AND me.user_id = ? AND me.qr_group_id = ?
+             LIMIT 1'
+        );
+        $stmt->execute([$messageId, (int) $user['id'], (int) $qrGroup['id']]);
+        $messageForAction = $stmt->fetch();
+
+        if (!$messageForAction) {
+            flash('error', 'Message not found.');
+            redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
+        }
+
+        if ($formAction === 'approve_message') {
+            $pdo->prepare('UPDATE memorial_messages SET status = "approved", approved_at = NOW() WHERE id = ?')
+                ->execute([$messageId]);
+            flash('success', 'Message approved and published.');
+        } else {
+            $pdo->prepare('DELETE FROM memorial_messages WHERE id = ?')
+                ->execute([$messageId]);
+            flash('success', 'Message deleted.');
+        }
+
+        redirect_to('/dashboard.php?memorial_id=' . (int) $messageForAction['memorial_id'] . '#messages-admin');
+    }
+
     if ($formAction === 'generate_ai_story') {
         if (!$planLimits['life_story']) {
             flash('error', 'Premium Life Story is available only on premium plans.');
@@ -448,7 +479,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             for ($i = 0; $i < $imageCount; $i++) {
                 $path = store_uploaded_image(
                     uploaded_file_at($_FILES['milestone_images'], $i),
-                    'memorials/' . (int) $targetMilestone['memorial_id'] . '/milestones/' . (int) $targetMilestone['id']
+                    'users/' . (int) $user['id'] . '/memorials/' . (int) $targetMilestone['memorial_id'] . '/milestones/' . (int) $targetMilestone['id']
                 );
 
                 if ($path) {
@@ -555,7 +586,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $profileUploadCount = min(count($_FILES['profile_images']['name']), $remainingSlots);
 
             for ($i = 0; $i < $profileUploadCount; $i++) {
-                $path = store_uploaded_image(uploaded_file_at($_FILES['profile_images'], $i), 'memorials/' . $memorialId . '/profile');
+                $path = store_uploaded_image(uploaded_file_at($_FILES['profile_images'], $i), 'users/' . (int) $user['id'] . '/memorials/' . $memorialId . '/profile');
 
                 if ($path) {
                     $pdo->prepare('INSERT INTO memorial_images (memorial_id, image_type, image_path) VALUES (?, "profile", ?)')
@@ -572,7 +603,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $galleryUploadCount = min(count($_FILES['gallery_images']['name']), $remainingSlots);
 
             for ($i = 0; $i < $galleryUploadCount; $i++) {
-                $path = store_uploaded_image(uploaded_file_at($_FILES['gallery_images'], $i), 'memorials/' . $memorialId . '/gallery');
+                $path = store_uploaded_image(uploaded_file_at($_FILES['gallery_images'], $i), 'users/' . (int) $user['id'] . '/memorials/' . $memorialId . '/gallery');
 
                 if ($path) {
                     $pdo->prepare('INSERT INTO memorial_images (memorial_id, image_type, image_path) VALUES (?, "gallery", ?)')
@@ -663,13 +694,26 @@ $milestones = [];
 $milestoneImages = [];
 $profileImages = [];
 $galleryImages = [];
+$memorialMessages = [];
 if ($memorial) {
-    $stmt = $pdo->prepare('SELECT * FROM memorial_images WHERE memorial_id = ? AND image_type = "profile" ORDER BY id ASC');
-    $stmt->execute([(int) $memorial['id']]);
+    $stmt = $pdo->prepare(
+        'SELECT mi.*
+         FROM memorial_images mi
+         INNER JOIN memorials me ON me.id = mi.memorial_id
+         WHERE mi.memorial_id = ? AND mi.image_type = "profile" AND me.user_id = ? AND me.qr_group_id = ?
+         ORDER BY mi.id ASC'
+    );
+    $stmt->execute([(int) $memorial['id'], (int) $user['id'], (int) $qrGroup['id']]);
     $profileImages = $stmt->fetchAll();
 
-    $stmt = $pdo->prepare('SELECT * FROM memorial_images WHERE memorial_id = ? AND image_type = "gallery" ORDER BY id ASC');
-    $stmt->execute([(int) $memorial['id']]);
+    $stmt = $pdo->prepare(
+        'SELECT mi.*
+         FROM memorial_images mi
+         INNER JOIN memorials me ON me.id = mi.memorial_id
+         WHERE mi.memorial_id = ? AND mi.image_type = "gallery" AND me.user_id = ? AND me.qr_group_id = ?
+         ORDER BY mi.id ASC'
+    );
+    $stmt->execute([(int) $memorial['id'], (int) $user['id'], (int) $qrGroup['id']]);
     $galleryImages = $stmt->fetchAll();
 
     $stmt = $pdo->prepare('SELECT * FROM milestones WHERE memorial_id = ? ORDER BY sort_order ASC, id ASC');
@@ -677,13 +721,30 @@ if ($memorial) {
     $milestones = $stmt->fetchAll();
 
     if ($milestones) {
-        $imageStmt = $pdo->prepare('SELECT * FROM milestone_images WHERE milestone_id = ? ORDER BY id ASC');
+        $imageStmt = $pdo->prepare(
+            'SELECT mii.*
+             FROM milestone_images mii
+             INNER JOIN milestones m ON m.id = mii.milestone_id
+             INNER JOIN memorials me ON me.id = m.memorial_id
+             WHERE mii.milestone_id = ? AND me.user_id = ? AND me.qr_group_id = ?
+             ORDER BY mii.id ASC'
+        );
 
         foreach ($milestones as $loadedMilestone) {
-            $imageStmt->execute([(int) $loadedMilestone['id']]);
+            $imageStmt->execute([(int) $loadedMilestone['id'], (int) $user['id'], (int) $qrGroup['id']]);
             $milestoneImages[(int) $loadedMilestone['id']] = $imageStmt->fetchAll();
         }
     }
+
+    $stmt = $pdo->prepare(
+        'SELECT mm.*
+         FROM memorial_messages mm
+         INNER JOIN memorials me ON me.id = mm.memorial_id
+         WHERE mm.memorial_id = ? AND me.user_id = ? AND me.qr_group_id = ?
+         ORDER BY mm.status ASC, mm.created_at DESC'
+    );
+    $stmt->execute([(int) $memorial['id'], (int) $user['id'], (int) $qrGroup['id']]);
+    $memorialMessages = $stmt->fetchAll();
 }
 
 $flash = get_flash();
@@ -698,7 +759,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-29') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-34') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
@@ -935,6 +996,49 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
           </div>
         </section>
       </form>
+
+      <?php if ($memorial): ?>
+        <section class="memorial-form" id="messages-admin">
+          <div class="form-section">
+            <h2>Messages of Love</h2>
+            <p>Approve messages before they appear on the public memorial page.</p>
+            <div class="admin-message-list">
+              <?php if ($memorialMessages): ?>
+                <?php foreach ($memorialMessages as $loveMessage): ?>
+                  <article class="admin-message-card">
+                    <div>
+                      <span class="message-status message-status-<?= htmlspecialchars($loveMessage['status'], ENT_QUOTES, 'UTF-8') ?>">
+                        <?= htmlspecialchars(ucfirst($loveMessage['status']), ENT_QUOTES, 'UTF-8') ?>
+                      </span>
+                      <h3><?= htmlspecialchars($loveMessage['sender_name'], ENT_QUOTES, 'UTF-8') ?></h3>
+                      <p><?= nl2br(htmlspecialchars($loveMessage['message'], ENT_QUOTES, 'UTF-8')) ?></p>
+                      <small><?= htmlspecialchars($loveMessage['sender_email'], ENT_QUOTES, 'UTF-8') ?></small>
+                    </div>
+                    <div class="admin-message-actions">
+                      <?php if ($loveMessage['status'] !== 'approved'): ?>
+                        <form method="post" action="dashboard.php">
+                          <input type="hidden" name="form_action" value="approve_message">
+                          <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+                          <input type="hidden" name="message_id" value="<?= (int) $loveMessage['id'] ?>">
+                          <button class="button-primary" type="submit">Approve</button>
+                        </form>
+                      <?php endif; ?>
+                      <form method="post" action="dashboard.php">
+                        <input type="hidden" name="form_action" value="delete_message">
+                        <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+                        <input type="hidden" name="message_id" value="<?= (int) $loveMessage['id'] ?>">
+                        <button class="image-delete-link" type="submit">Delete</button>
+                      </form>
+                    </div>
+                  </article>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <p class="field-note">No messages submitted yet.</p>
+              <?php endif; ?>
+            </div>
+          </div>
+        </section>
+      <?php endif; ?>
 
       <?php if ($memorial && $planLimits['life_story']): ?>
         <form class="memorial-form ai-story-form" method="post" action="dashboard.php">
