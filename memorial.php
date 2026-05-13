@@ -124,7 +124,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-10') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-12') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial">
@@ -199,7 +199,7 @@ if ($milestones) {
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-10') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-12') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -329,6 +329,7 @@ if ($milestones) {
       let slideTimer = null;
       let profileCoverTimer = null;
       let activeModalImage = 0;
+      let preferredNarrationVoice = null;
 
       if (profileCoverImages.length > 1) {
         let profileIndex = 0;
@@ -371,6 +372,51 @@ if ($milestones) {
         }, 5200);
       }
 
+      function scoreNarrationVoice(voice) {
+        const name = `${voice.name} ${voice.voiceURI}`.toLowerCase();
+        let score = 0;
+
+        if (voice.lang && voice.lang.toLowerCase().startsWith('en')) score += 12;
+        if (voice.localService) score += 1;
+        if (name.includes('male')) score += 24;
+        if (name.includes('david')) score += 20;
+        if (name.includes('daniel')) score += 20;
+        if (name.includes('mark')) score += 18;
+        if (name.includes('george')) score += 18;
+        if (name.includes('fred')) score += 14;
+        if (name.includes('google uk english male')) score += 30;
+        if (name.includes('google us english')) score += 10;
+        if (name.includes('microsoft')) score += 8;
+        if (name.includes('natural')) score += 8;
+        if (name.includes('online')) score += 6;
+        if (name.includes('female')) score -= 24;
+        if (name.includes('zira')) score -= 14;
+        if (name.includes('susan')) score -= 14;
+        if (name.includes('samantha')) score -= 14;
+        if (name.includes('victoria')) score -= 14;
+
+        return score;
+      }
+
+      function selectNarrationVoice() {
+        const voices = window.speechSynthesis?.getVoices?.() || [];
+
+        if (!voices.length) {
+          return null;
+        }
+
+        preferredNarrationVoice = voices
+          .slice()
+          .sort((first, second) => scoreNarrationVoice(second) - scoreNarrationVoice(first))[0] || null;
+
+        return preferredNarrationVoice;
+      }
+
+      if ('speechSynthesis' in window) {
+        selectNarrationVoice();
+        window.speechSynthesis.onvoiceschanged = selectNarrationVoice;
+      }
+
       function speakMilestone(index) {
         if (index >= milestones.length) {
           stopNarration();
@@ -402,8 +448,10 @@ if ($milestones) {
         runSlideshow(images);
 
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.82;
-        utterance.pitch = 0.88;
+        utterance.voice = preferredNarrationVoice || selectNarrationVoice();
+        utterance.rate = 0.78;
+        utterance.pitch = 0.72;
+        utterance.volume = 1;
         utterance.onend = () => speakMilestone(index + 1);
         window.speechSynthesis.speak(utterance);
       }

@@ -1300,12 +1300,16 @@ h2 {
 }
 
 .mobile-memorial-cover h1 {
+  display: -webkit-box;
+  overflow: hidden;
   color: var(--memorial-primary-text);
-  font-size: clamp(40px, 12vw, 54px);
+  font-size: clamp(30px, 9vw, 42px);
   font-weight: 700;
-  line-height: 1.02;
+  line-height: 1.08;
   text-transform: uppercase;
   text-shadow: 0 2px 22px rgba(0, 0, 0, 0.32);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .memorial-dates {
