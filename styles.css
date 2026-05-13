@@ -977,14 +977,15 @@ h2 {
 }
 
 .milestone-image-preview {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  margin: 0 0 16px;
+  margin: 0;
 }
 
 .milestone-image-preview img {
-  width: 100%;
+  width: 150px;
+  max-width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
   border: 3px solid var(--white);
@@ -993,7 +994,6 @@ h2 {
 }
 
 .milestone-image-preview p {
-  grid-column: 1 / -1;
   margin: 0;
   padding: 12px;
   border: 1px dashed rgba(33, 76, 99, 0.22);

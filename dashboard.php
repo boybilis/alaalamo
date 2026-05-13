@@ -440,15 +440,6 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
             <?php $imagesForMilestone = $milestone ? ($milestoneImages[(int) $milestone['id']] ?? []) : []; ?>
             <div class="milestone-box">
               <h3>Milestone <?= $i + 1 ?></h3>
-              <div class="milestone-image-preview">
-                <?php if ($imagesForMilestone): ?>
-                  <?php foreach ($imagesForMilestone as $image): ?>
-                    <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Milestone image preview">
-                  <?php endforeach; ?>
-                <?php else: ?>
-                  <p>No milestone images yet.</p>
-                <?php endif; ?>
-              </div>
               <div class="form-grid">
                 <label>
                   Title
@@ -467,6 +458,15 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
                   <input type="file" name="milestone_images[<?= $i ?>][]" accept="image/jpeg,image/png,image/webp" multiple>
                   <span class="field-note">Maximum <?= MAX_MILESTONE_IMAGES ?> images for this milestone.</span>
                 </label>
+                <div class="milestone-image-preview form-full">
+                  <?php if ($imagesForMilestone): ?>
+                    <?php foreach ($imagesForMilestone as $image): ?>
+                      <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Milestone image preview">
+                    <?php endforeach; ?>
+                  <?php else: ?>
+                    <p>No milestone images yet.</p>
+                  <?php endif; ?>
+                </div>
               </div>
             </div>
           <?php endfor; ?>
