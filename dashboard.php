@@ -357,6 +357,10 @@ function store_mobile_optimized_image(array $file, string $subdirectory): ?strin
         return null;
     }
 
+    if (($file['size'] ?? 0) <= 1024 * 1024 && max((int) $dimensions[0], (int) $dimensions[1]) <= 1600) {
+        return store_uploaded_image($file, $subdirectory);
+    }
+
     $estimatedMemory = ((int) $dimensions[0] * (int) $dimensions[1] * 5) + (20 * 1024 * 1024);
     $memoryLimit = ini_bytes((string) ini_get('memory_limit'));
 
@@ -897,6 +901,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($formAction === 'upload_milestone_images') {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
         $milestoneIdInput = (int) ($_POST['milestone_id'] ?? 0);
 
         $stmt = $pdo->prepare(
@@ -961,6 +969,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $uploaded++;
                 } else {
                     $uploadErrorMessage = 'The image could not be processed. Try a JPG photo under 3MB.';
+                }
+
+                unset($uploadFile, $path);
+
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
                 }
             }
         }
@@ -1248,7 +1262,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-42') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-43') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
@@ -1645,7 +1659,47 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
         }
 
         function ajaxErrorMessage(xhr, fallback) {
-          return (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : fallback;
+          if (xhr.responseJSON && xhr.responseJSON.message) {
+            return xhr.responseJSON.message;
+          }
+
+          if (xhr.status === 413) {
+            return 'Upload is too large for the server. Use a JPG photo under 3MB.';
+          }
+
+          if (xhr.responseText) {
+            const plainText = xhr.responseText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            if (plainText) {
+              return plainText.substring(0, 180);
+            }
+          }
+
+          return fallback;
+        }
+
+        function validateImageFiles(files, maxFiles) {
+          const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+          const maxBytes = 3 * 1024 * 1024;
+
+          if (!files.length) {
+            return 'Choose at least one image first.';
+          }
+
+          if (files.length > maxFiles) {
+            return 'You can upload up to ' + maxFiles + ' image' + (maxFiles === 1 ? '' : 's') + ' at a time for this milestone.';
+          }
+
+          for (const file of files) {
+            if (!allowedTypes.includes(file.type)) {
+              return file.name + ' is not supported. Please use JPG, PNG, or WebP.';
+            }
+
+            if (file.size > maxBytes) {
+              return file.name + ' is larger than 3MB. Please choose a smaller photo.';
+            }
+          }
+
+          return '';
         }
 
         function milestoneCanGenerate($box) {
@@ -1845,51 +1899,61 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
           const $button = $(this);
           const $box = $button.closest('[data-milestone-box]');
           const milestoneId = $box.find('[data-milestone-id]').val();
-          const files = $box.find('[data-milestone-images]')[0].files;
+          const input = $box.find('[data-milestone-images]')[0];
+          const files = Array.from(input.files || []);
 
           if (!milestoneId || milestoneId === '0') {
             setStatus($box, 'Save this milestone first.', 'error');
             return;
           }
 
-          if (!files.length) {
-            setStatus($box, 'Choose at least one image first.', 'error');
+          const validationMessage = validateImageFiles(files, <?= (int) $planLimits['milestone_images'] ?>);
+
+          if (validationMessage) {
+            setStatus($box, validationMessage, 'error');
             return;
           }
 
-          const formData = new FormData();
-          formData.append('ajax', '1');
-          formData.append('form_action', 'upload_milestone_images');
-          formData.append('memorial_id', memorialId);
-          formData.append('milestone_id', milestoneId);
-
-          $.each(files, function (_, file) {
-            formData.append('milestone_images[]', file);
-          });
-
           $button.prop('disabled', true);
-          setStatus($box, 'Uploading...', 'success');
+          uploadMilestoneFile(0, 0);
 
-          $.ajax({
-            url: 'dashboard.php',
-            method: 'POST',
-            dataType: 'json',
-            data: formData,
-            processData: false,
-            contentType: false,
-            timeout: 120000
-          }).done(function (response) {
-            const $preview = $box.find('[data-milestone-preview]');
-            $preview.find('p').remove();
-            $preview.append(response.html || '');
-            $box.find('[data-milestone-images]').val('');
-            setStatus($box, response.message || 'Images uploaded.', 'success');
-          }).fail(function (xhr, textStatus) {
-            const timeoutMessage = 'Upload timed out. Try uploading one smaller JPG photo first.';
-            setStatus($box, textStatus === 'timeout' ? timeoutMessage : ajaxErrorMessage(xhr, 'Images could not be uploaded. Try a JPG photo under 3MB.'), 'error');
-          }).always(function () {
-            $button.prop('disabled', false);
-          });
+          function uploadMilestoneFile(index, uploadedCount) {
+            if (index >= files.length) {
+              $(input).val('');
+              $button.prop('disabled', false);
+              setStatus($box, uploadedCount + ' image' + (uploadedCount === 1 ? '' : 's') + ' uploaded.', 'success');
+              return;
+            }
+
+            const formData = new FormData();
+            formData.append('ajax', '1');
+            formData.append('form_action', 'upload_milestone_images');
+            formData.append('memorial_id', memorialId);
+            formData.append('milestone_id', milestoneId);
+            formData.append('milestone_images[]', files[index]);
+
+            setStatus($box, 'Uploading image ' + (index + 1) + ' of ' + files.length + '...', 'success');
+
+            $.ajax({
+              url: 'dashboard.php',
+              method: 'POST',
+              dataType: 'json',
+              data: formData,
+              processData: false,
+              contentType: false,
+              timeout: 90000
+            }).done(function (response) {
+              const $preview = $box.find('[data-milestone-preview]');
+              $preview.find('p').remove();
+              $preview.append(response.html || '');
+              formData.delete('milestone_images[]');
+              uploadMilestoneFile(index + 1, uploadedCount + 1);
+            }).fail(function (xhr, textStatus) {
+              const timeoutMessage = 'Upload timed out on ' + files[index].name + '. Try a smaller JPG photo.';
+              setStatus($box, textStatus === 'timeout' ? timeoutMessage : ajaxErrorMessage(xhr, files[index].name + ' could not be uploaded. Try a JPG photo under 3MB.'), 'error');
+              $button.prop('disabled', false);
+            });
+          }
         });
 
         $('[data-delete-milestone]').on('click', function () {

@@ -523,7 +523,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-42') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-43') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -651,7 +651,7 @@ $messageFlash = get_flash();
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-42') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-43') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -753,6 +753,8 @@ $messageFlash = get_flash();
                       alt="Shared memorial photo"
                       data-lightbox-src="<?= htmlspecialchars($image['image_url'], ENT_QUOTES, 'UTF-8') ?>"
                       data-lightbox-alt="Shared memorial photo"
+                      data-lightbox-caption="<?= htmlspecialchars((string) ($image['caption'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                      data-lightbox-credit="<?= htmlspecialchars((string) ($image['sender_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                     >
                     <?php if (!empty($image['caption'])): ?>
                       <figcaption><?= htmlspecialchars($image['caption'], ENT_QUOTES, 'UTF-8') ?></figcaption>
@@ -866,6 +868,10 @@ $messageFlash = get_flash();
       <section class="image-lightbox-panel" role="dialog" aria-modal="true" aria-label="Image preview">
         <button class="image-lightbox-close" type="button" aria-label="Close image preview">&times;</button>
         <img class="image-lightbox-img" src="" alt="">
+        <div class="image-lightbox-copy" hidden>
+          <p class="image-lightbox-caption"></p>
+          <p class="image-lightbox-credit"></p>
+        </div>
       </section>
     </div>
     <div class="modal fade" id="messageLoveModal" tabindex="-1" aria-hidden="true">
@@ -980,6 +986,9 @@ $messageFlash = get_flash();
       const modalClose = document.querySelector('.story-modal-close');
       const imageLightbox = document.querySelector('.image-lightbox');
       const imageLightboxImage = document.querySelector('.image-lightbox-img');
+      const imageLightboxCopy = document.querySelector('.image-lightbox-copy');
+      const imageLightboxCaption = document.querySelector('.image-lightbox-caption');
+      const imageLightboxCredit = document.querySelector('.image-lightbox-credit');
       const imageLightboxClose = document.querySelector('.image-lightbox-close');
       let slideTimer = null;
       let profileCoverTimer = null;
@@ -1133,6 +1142,15 @@ $messageFlash = get_flash();
           imageLightboxImage.src = '';
           imageLightboxImage.alt = '';
         }
+        if (imageLightboxCopy) {
+          imageLightboxCopy.hidden = true;
+        }
+        if (imageLightboxCaption) {
+          imageLightboxCaption.textContent = '';
+        }
+        if (imageLightboxCredit) {
+          imageLightboxCredit.textContent = '';
+        }
       }
 
       document.addEventListener('click', (event) => {
@@ -1145,6 +1163,11 @@ $messageFlash = get_flash();
           imageLightboxImage.src = image.dataset.lightboxSrc;
           imageLightboxImage.alt = image.dataset.lightboxAlt || image.alt || 'Memorial image';
         }
+        const caption = image.dataset.lightboxCaption || '';
+        const credit = image.dataset.lightboxCredit || '';
+        if (imageLightboxCaption) imageLightboxCaption.textContent = caption;
+        if (imageLightboxCredit) imageLightboxCredit.textContent = credit ? `Shared by ${credit}` : '';
+        if (imageLightboxCopy) imageLightboxCopy.hidden = !caption && !credit;
         imageLightbox?.classList.add('is-open');
         imageLightbox?.setAttribute('aria-hidden', 'false');
       });
