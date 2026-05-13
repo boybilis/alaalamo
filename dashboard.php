@@ -1106,7 +1106,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
                         <?= !empty($milestone['ai_narration_text']) ? htmlspecialchars($milestone['ai_narration_text'], ENT_QUOTES, 'UTF-8') : 'No enhanced text saved yet.' ?>
                       </span>
                     </div>
-                    <button class="button-primary milestone-ai-button" type="button" data-generate-milestone-ai <?= $milestone ? '' : 'disabled' ?>>
+                    <button class="button-primary milestone-ai-button" type="button" data-generate-milestone-ai <?= ($milestone && clean_input((string) ($milestone['description'] ?? '')) !== '') ? '' : 'disabled' ?>>
                       Generate Enhanced Biography
                     </button>
                   </div>
@@ -1244,6 +1244,14 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
           return (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : fallback;
         }
 
+        function milestoneCanGenerate($box) {
+          return $box.find('[data-milestone-id]').val() !== '0' && $box.find('[data-milestone-description]').val().trim() !== '';
+        }
+
+        function syncMilestoneEnhancementButton($box) {
+          $box.find('[data-generate-milestone-ai]').prop('disabled', !milestoneCanGenerate($box));
+        }
+
         let activeAiMilestoneBox = null;
         const $aiModal = $('[data-ai-modal]');
         const $aiText = $('[data-ai-generated-text]');
@@ -1272,6 +1280,14 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
           if (event.key === 'Escape' && $aiModal.hasClass('is-open')) {
             closeAiModal();
           }
+        });
+
+        $('[data-milestone-box]').each(function () {
+          syncMilestoneEnhancementButton($(this));
+        });
+
+        $('[data-milestone-description]').on('input', function () {
+          syncMilestoneEnhancementButton($(this).closest('[data-milestone-box]'));
         });
 
         $('[data-get-location]').on('click', function () {
@@ -1330,7 +1346,8 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
             }
           }).done(function (response) {
             $box.find('[data-milestone-id]').val(response.milestone_id);
-            $box.find('[data-milestone-images], [data-upload-milestone], [data-delete-milestone], [data-generate-milestone-ai]').prop('disabled', false);
+            $box.find('[data-milestone-images], [data-upload-milestone], [data-delete-milestone]').prop('disabled', false);
+            syncMilestoneEnhancementButton($box);
             $box.find('[data-milestone-images]').siblings('.field-note').text('Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. This upload will not change the QR code.');
             setStatus($box, response.message || 'Milestone saved.', 'success');
           }).fail(function (xhr) {
@@ -1347,6 +1364,12 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
 
           if (!milestoneId || milestoneId === '0') {
             setStatus($box, 'Save this milestone first.', 'error');
+            return;
+          }
+
+          if ($box.find('[data-milestone-description]').val().trim() === '') {
+            setStatus($box, 'Add and save a milestone description first.', 'error');
+            syncMilestoneEnhancementButton($box);
             return;
           }
 
