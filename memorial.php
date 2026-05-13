@@ -70,6 +70,26 @@ function memorial_date_range(array $memorial): string
     return $birthDate !== '' ? $birthDate : $deathDate;
 }
 
+function memorial_coordinate_url(array $memorial): ?string
+{
+    $lat = $memorial['resting_lat'] ?? null;
+    $lng = $memorial['resting_lng'] ?? null;
+
+    if ($lat === null || $lng === null || !is_numeric((string) $lat) || !is_numeric((string) $lng)) {
+        return null;
+    }
+
+    $latitude = (float) $lat;
+    $longitude = (float) $lng;
+
+    if ($latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180) {
+        return null;
+    }
+
+    return 'https://www.google.com/maps/dir/?api=1&destination='
+        . rawurlencode(number_format($latitude, 7, '.', '') . ',' . number_format($longitude, 7, '.', ''));
+}
+
 function qr_plan_type(?array $qrGroup): string
 {
     return (($qrGroup['plan_type'] ?? 'regular') === 'premium') ? 'premium' : 'regular';
@@ -180,6 +200,7 @@ if ($selectedId > 0 && $qrGroup) {
 
 $themeStyle = memorial_theme_style($memorial);
 $planLimits = qr_plan_limits($qrGroup ?: null);
+$restingMapsUrl = memorial_coordinate_url($memorial);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isGroupView) {
     $formAction = clean_input($_POST['form_action'] ?? '');
@@ -285,7 +306,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-36') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-37') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -404,7 +425,7 @@ $messageFlash = get_flash();
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-36') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-37') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -431,10 +452,17 @@ $messageFlash = get_flash();
             <blockquote><?= nl2br(htmlspecialchars($memorial['memorial_quote'], ENT_QUOTES, 'UTF-8')) ?></blockquote>
           <?php endif; ?>
           <?php if (!empty($memorial['resting_place'])): ?>
-            <p class="memorial-resting-place">
-              <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
-              <span><?= htmlspecialchars($memorial['resting_place'], ENT_QUOTES, 'UTF-8') ?></span>
-            </p>
+            <?php if ($restingMapsUrl): ?>
+              <a class="memorial-resting-place" href="<?= htmlspecialchars($restingMapsUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">
+                <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                <span><?= htmlspecialchars($memorial['resting_place'], ENT_QUOTES, 'UTF-8') ?></span>
+              </a>
+            <?php else: ?>
+              <p class="memorial-resting-place">
+                <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                <span><?= htmlspecialchars($memorial['resting_place'], ENT_QUOTES, 'UTF-8') ?></span>
+              </p>
+            <?php endif; ?>
           <?php endif; ?>
           <div class="memorial-hero-actions d-grid gap-2 mt-3">
             <?php if ($planLimits['life_story'] && (!empty($memorial['autobiography_text']) || $milestones)): ?>

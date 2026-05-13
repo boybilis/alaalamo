@@ -728,6 +728,48 @@ h2 {
   cursor: pointer;
 }
 
+.location-pin-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(33, 76, 99, 0.12);
+  border-radius: 8px;
+  background: rgba(234, 220, 200, 0.34);
+}
+
+.location-pin-panel h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.location-pin-panel p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.location-pin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.location-pin-grid .button-secondary {
+  min-height: 48px;
+  padding: 0 18px;
+  border-color: rgba(33, 76, 99, 0.2);
+  background: var(--accent-dark);
+  color: var(--white);
+  box-shadow: none;
+}
+
+.location-pin-grid input[readonly] {
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .form-submit {
   border: 0;
   cursor: pointer;
@@ -1413,12 +1455,22 @@ h2 {
   font-size: 14px;
   font-weight: 700;
   line-height: 1.45;
+  text-decoration: none;
 }
 
 .memorial-resting-place i {
   flex: 0 0 auto;
   margin-top: 0.18em;
   color: var(--memorial-secondary);
+}
+
+a.memorial-resting-place span {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+a.memorial-resting-place:hover {
+  color: var(--memorial-primary-text);
 }
 
 .mobile-memorial-cover blockquote {
@@ -1975,6 +2027,7 @@ h2 {
   .dashboard-layout { width: calc(100% - 24px); }
   .form-grid { grid-template-columns: 1fr; }
   .theme-picker { grid-template-columns: 1fr; }
+  .location-pin-grid { grid-template-columns: 1fr; }
   .dashboard-panel,
   .qr-panel,
   .memorial-form { padding: 20px; }

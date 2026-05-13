@@ -74,6 +74,23 @@ function clean_hex_color(string $value, string $fallback): string
     return $fallback;
 }
 
+function clean_coordinate(string $value, float $min, float $max): ?string
+{
+    $coordinate = trim($value);
+
+    if ($coordinate === '' || !is_numeric($coordinate)) {
+        return null;
+    }
+
+    $number = (float) $coordinate;
+
+    if ($number < $min || $number > $max) {
+        return null;
+    }
+
+    return number_format($number, 7, '.', '');
+}
+
 function qr_plan_type(array $qrGroup): string
 {
     return ($qrGroup['plan_type'] ?? 'regular') === 'premium' ? 'premium' : 'regular';
@@ -510,6 +527,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $birthDate = clean_input($_POST['birth_date'] ?? '');
     $deathDate = clean_input($_POST['death_date'] ?? '');
     $restingPlace = clean_input($_POST['resting_place'] ?? '');
+    $restingLat = clean_coordinate((string) ($_POST['resting_lat'] ?? ''), -90, 90);
+    $restingLng = clean_coordinate((string) ($_POST['resting_lng'] ?? ''), -180, 180);
     $memorialQuote = clean_input($_POST['memorial_quote'] ?? '');
     $shortDescription = clean_input($_POST['short_description'] ?? '');
     $themePrimary = clean_hex_color($_POST['theme_primary'] ?? '', '#214c63');
@@ -533,13 +552,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token = $memorial['public_token'];
             $pdo->prepare(
                 'UPDATE memorials
-                 SET loved_one_name = ?, birth_date = ?, death_date = ?, resting_place = ?, memorial_quote = ?, short_description = ?, theme_primary = ?, theme_secondary = ?, theme_tertiary = ?, status = "published"
+                 SET loved_one_name = ?, birth_date = ?, death_date = ?, resting_place = ?, resting_lat = ?, resting_lng = ?, memorial_quote = ?, short_description = ?, theme_primary = ?, theme_secondary = ?, theme_tertiary = ?, status = "published"
                  WHERE id = ?'
             )->execute([
                 $lovedOneName,
                 $birthDate !== '' ? $birthDate : null,
                 $deathDate !== '' ? $deathDate : null,
                 $restingPlace !== '' ? $restingPlace : null,
+                $restingLat,
+                $restingLng,
                 $memorialQuote !== '' ? $memorialQuote : null,
                 $shortDescription !== '' ? $shortDescription : null,
                 $themePrimary,
@@ -559,8 +580,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token = generate_token();
             $pdo->prepare(
                 'INSERT INTO memorials
-                 (user_id, qr_group_id, public_token, loved_one_name, birth_date, death_date, resting_place, memorial_quote, short_description, theme_primary, theme_secondary, theme_tertiary, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "published")'
+                 (user_id, qr_group_id, public_token, loved_one_name, birth_date, death_date, resting_place, resting_lat, resting_lng, memorial_quote, short_description, theme_primary, theme_secondary, theme_tertiary, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "published")'
             )->execute([
                 (int) $user['id'],
                 (int) $qrGroup['id'],
@@ -569,6 +590,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $birthDate !== '' ? $birthDate : null,
                 $deathDate !== '' ? $deathDate : null,
                 $restingPlace !== '' ? $restingPlace : null,
+                $restingLat,
+                $restingLng,
                 $memorialQuote !== '' ? $memorialQuote : null,
                 $shortDescription !== '' ? $shortDescription : null,
                 $themePrimary,
@@ -759,7 +782,8 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-36') ?>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-37') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
@@ -850,6 +874,29 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
               Resting place
               <input type="text" name="resting_place" value="<?= htmlspecialchars($memorial['resting_place'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
             </label>
+            <div class="form-full location-pin-panel">
+              <div>
+                <h3>Cemetery map pin</h3>
+                <p>Use this while you are at the cemetery so visitors can open the address in phone maps.</p>
+              </div>
+              <div class="location-pin-grid">
+                <label>
+                  Latitude
+                  <input type="text" name="resting_lat" value="<?= htmlspecialchars((string) ($memorial['resting_lat'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" readonly data-resting-lat>
+                </label>
+                <label>
+                  Longitude
+                  <input type="text" name="resting_lng" value="<?= htmlspecialchars((string) ($memorial['resting_lng'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" readonly data-resting-lng>
+                </label>
+                <button class="button-secondary" type="button" data-get-location>
+                  <i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i>
+                  Get exact pin
+                </button>
+              </div>
+              <span class="field-note" data-location-status>
+                Your phone will ask permission before AlaalaMo saves the exact location.
+              </span>
+            </div>
             <label>
               Birth date
               <input type="date" name="birth_date" value="<?= htmlspecialchars($memorial['birth_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
@@ -1074,6 +1121,39 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
         function ajaxErrorMessage(xhr, fallback) {
           return (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : fallback;
         }
+
+        $('[data-get-location]').on('click', function () {
+          const $button = $(this);
+          const $status = $('[data-location-status]');
+
+          if (!navigator.geolocation) {
+            $status.text('This phone or browser does not support exact location capture.');
+            return;
+          }
+
+          $button.prop('disabled', true);
+          $status.text('Checking phone location permission...');
+
+          navigator.geolocation.getCurrentPosition(function (position) {
+            $('[data-resting-lat]').val(position.coords.latitude.toFixed(7));
+            $('[data-resting-lng]').val(position.coords.longitude.toFixed(7));
+            $status.text('Exact pin captured. Click Save Memorial Details to store it.');
+            $button.prop('disabled', false);
+          }, function (error) {
+            const messages = {
+              1: 'Location permission was denied. Please allow location access and try again.',
+              2: 'Your phone could not detect the exact location right now.',
+              3: 'Location detection took too long. Please try again in an open area.'
+            };
+
+            $status.text(messages[error.code] || 'Location could not be captured.');
+            $button.prop('disabled', false);
+          }, {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          });
+        });
 
         $('[data-save-milestone]').on('click', function () {
           const $button = $(this);
