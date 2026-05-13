@@ -155,6 +155,84 @@ function send_memorial_message_otp(string $email, string $otp, string $lovedOneN
     }
 }
 
+function send_memorial_photo_otp(string $email, string $otp, string $lovedOneName): bool
+{
+    $autoloadPath = __DIR__ . '/vendor/autoload.php';
+
+    if (!is_file($autoloadPath)) {
+        error_log('PHPMailer is not installed for memorial photo OTP.');
+        return false;
+    }
+
+    require_once $autoloadPath;
+
+    $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+    $safeName = htmlspecialchars($lovedOneName, ENT_QUOTES, 'UTF-8');
+    $safeOtp = htmlspecialchars($otp, ENT_QUOTES, 'UTF-8');
+
+    try {
+        $mail->isSMTP();
+        $mail->Host = SMTP_HOST;
+        $mail->SMTPAuth = true;
+        $mail->Username = SMTP_USERNAME;
+        $mail->Password = SMTP_PASSWORD;
+        $mail->SMTPSecure = SMTP_ENCRYPTION === 'tls'
+            ? \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS
+            : \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+        $mail->Port = SMTP_PORT;
+        $mail->CharSet = 'UTF-8';
+        $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
+        $mail->addAddress($email);
+        $mail->Subject = 'Your AlaalaMo photo sharing OTP';
+        $mail->isHTML(true);
+        $mail->Body = '
+            <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #1f2933;">
+                <h1 style="color:#214c63; margin-bottom: 8px;">Share photos for ' . $safeName . '</h1>
+                <p style="font-size:16px; line-height:1.6;">Use this code to submit your photos for family approval.</p>
+                <p style="font-size:34px; font-weight:800; letter-spacing:6px; color:#214c63; background:#f5eee4; padding:18px 22px; border-radius:8px; text-align:center;">' . $safeOtp . '</p>
+                <p style="font-size:14px; color:#5f6975;">This code expires in 1 minute.</p>
+            </div>
+        ';
+        $mail->AltBody = "Your AlaalaMo photo sharing OTP is {$otp}. It expires in 1 minute.";
+
+        return $mail->send();
+    } catch (Throwable $exception) {
+        error_log('Photo OTP email failed: ' . $exception->getMessage());
+        return false;
+    }
+}
+
+function uploaded_file_at_index(array $files, int $index): array
+{
+    return [
+        'name' => $files['name'][$index] ?? '',
+        'type' => $files['type'][$index] ?? '',
+        'tmp_name' => $files['tmp_name'][$index] ?? '',
+        'error' => $files['error'][$index] ?? UPLOAD_ERR_NO_FILE,
+        'size' => $files['size'][$index] ?? 0,
+    ];
+}
+
+function safe_delete_temp_upload(?string $relativePath): void
+{
+    $path = str_replace('\\', '/', ltrim((string) $relativePath, '/'));
+
+    if ($path === '' || !str_starts_with($path, 'uploads/') || str_contains($path, '..')) {
+        return;
+    }
+
+    $uploadsRoot = realpath(__DIR__ . '/uploads');
+    $target = realpath(__DIR__ . '/' . $path);
+
+    if (!$uploadsRoot || !$target) {
+        return;
+    }
+
+    if (str_starts_with($target, rtrim($uploadsRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR) && is_file($target)) {
+        unlink($target);
+    }
+}
+
 $pdo = db();
 $stmt = $pdo->prepare('SELECT * FROM qr_groups WHERE public_token = ? LIMIT 1');
 $stmt->execute([$token]);
@@ -293,6 +371,122 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isGroupView) {
         flash('success', 'Your message was submitted. It will appear after family approval.');
         redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#messages');
     }
+
+    if ($formAction === 'request_photo_otp') {
+        $senderName = clean_input($_POST['sender_name'] ?? '');
+        $senderEmail = strtolower(clean_input($_POST['sender_email'] ?? ''));
+        $caption = substr(clean_input($_POST['caption'] ?? ''), 0, 255);
+        $storedPaths = [];
+
+        if ($senderName === '' || !filter_var($senderEmail, FILTER_VALIDATE_EMAIL) || $caption === '') {
+            flash('error', 'Please enter your name, email, and a short photo caption.');
+            redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#shared-photos');
+        }
+
+        if (empty($_FILES['shared_photos']['name']) || !is_array($_FILES['shared_photos']['name'])) {
+            flash('error', 'Please choose up to 2 photos to share.');
+            redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#shared-photos');
+        }
+
+        $imageCount = min(count($_FILES['shared_photos']['name']), 2);
+
+        for ($i = 0; $i < $imageCount; $i++) {
+            $path = store_uploaded_image(
+                uploaded_file_at_index($_FILES['shared_photos'], $i),
+                'community-pending/memorial-' . (int) $memorial['id']
+            );
+
+            if ($path) {
+                $storedPaths[] = $path;
+            }
+        }
+
+        if (!$storedPaths) {
+            flash('error', 'No valid photos were uploaded. Please use JPG, PNG, or WebP images.');
+            redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#shared-photos');
+        }
+
+        $otp = generate_otp();
+        $expiresAt = (new DateTimeImmutable('+1 minute'))->format('Y-m-d H:i:s');
+
+        $pdo->prepare(
+            'UPDATE memorial_photo_otps
+             SET consumed_at = NOW()
+             WHERE memorial_id = ? AND sender_email = ? AND consumed_at IS NULL'
+        )->execute([(int) $memorial['id'], $senderEmail]);
+
+        $pdo->prepare(
+            'INSERT INTO memorial_photo_otps
+             (memorial_id, sender_name, sender_email, caption, temp_image_paths, otp_hash, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
+        )->execute([
+            (int) $memorial['id'],
+            $senderName,
+            $senderEmail,
+            $caption,
+            json_encode($storedPaths, JSON_UNESCAPED_SLASHES),
+            password_hash($otp, PASSWORD_DEFAULT),
+            $expiresAt,
+        ]);
+
+        if (!send_memorial_photo_otp($senderEmail, $otp, (string) $memorial['loved_one_name'])) {
+            foreach ($storedPaths as $storedPath) {
+                safe_delete_temp_upload($storedPath);
+            }
+
+            flash('error', 'The OTP email could not be sent. Please try again later.');
+            redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#shared-photos');
+        }
+
+        flash('success', 'We sent a 1-minute OTP to your email. Enter it to submit your photos for approval.');
+        redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '&verify_photo=1&photo_email=' . urlencode($senderEmail) . '#shared-photos');
+    }
+
+    if ($formAction === 'verify_photo_otp') {
+        $senderEmail = strtolower(clean_input($_POST['sender_email'] ?? ''));
+        $otp = clean_input($_POST['otp'] ?? '');
+        $stmt = $pdo->prepare(
+            'SELECT *
+             FROM memorial_photo_otps
+             WHERE memorial_id = ? AND sender_email = ? AND consumed_at IS NULL
+             ORDER BY id DESC
+             LIMIT 1'
+        );
+        $stmt->execute([(int) $memorial['id'], $senderEmail]);
+        $pendingOtp = $stmt->fetch();
+
+        if (!$pendingOtp || (int) $pendingOtp['attempts'] >= 5 || strtotime((string) $pendingOtp['expires_at']) < time() || !password_verify($otp, (string) $pendingOtp['otp_hash'])) {
+            if ($pendingOtp) {
+                $pdo->prepare('UPDATE memorial_photo_otps SET attempts = attempts + 1 WHERE id = ?')
+                    ->execute([(int) $pendingOtp['id']]);
+            }
+
+            flash('error', 'Invalid or expired OTP. Please request a new one.');
+            redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '&verify_photo=1&photo_email=' . urlencode($senderEmail) . '#shared-photos');
+        }
+
+        $paths = json_decode((string) $pendingOtp['temp_image_paths'], true);
+        $paths = is_array($paths) ? array_slice($paths, 0, 2) : [];
+
+        foreach ($paths as $path) {
+            $pdo->prepare(
+                'INSERT INTO memorial_community_photos (memorial_id, sender_name, sender_email, caption, temp_image_path)
+                 VALUES (?, ?, ?, ?, ?)'
+            )->execute([
+                (int) $memorial['id'],
+                $pendingOtp['sender_name'],
+                $pendingOtp['sender_email'],
+                $pendingOtp['caption'],
+                $path,
+            ]);
+        }
+
+        $pdo->prepare('UPDATE memorial_photo_otps SET consumed_at = NOW() WHERE id = ?')
+            ->execute([(int) $pendingOtp['id']]);
+
+        flash('success', 'Your photos were submitted. They will appear after family approval.');
+        redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#shared-photos');
+    }
 }
 
 if ($isGroupView): ?>
@@ -306,7 +500,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-39') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-40') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -380,6 +574,15 @@ $stmt = $pdo->prepare('SELECT * FROM memorial_images WHERE memorial_id = ? AND i
 $stmt->execute([(int) $memorial['id']]);
 $galleryImages = $stmt->fetchAll();
 
+$stmt = $pdo->prepare(
+    'SELECT *
+     FROM memorial_community_photos
+     WHERE memorial_id = ? AND status = "approved" AND image_url IS NOT NULL
+     ORDER BY approved_at DESC, id DESC'
+);
+$stmt->execute([(int) $memorial['id']]);
+$communityPhotos = $stmt->fetchAll();
+
 $heroImages = $profileImages ?: $galleryImages;
 
 $stmt = $pdo->prepare('SELECT * FROM milestones WHERE memorial_id = ? ORDER BY sort_order ASC, id ASC LIMIT ' . (int) $planLimits['milestones']);
@@ -425,7 +628,7 @@ $messageFlash = get_flash();
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-39') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-40') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -468,7 +671,7 @@ $messageFlash = get_flash();
             <?php if ($planLimits['life_story'] && (!empty($memorial['autobiography_text']) || $milestones)): ?>
               <button class="btn btn-light btn-lg story-play-button" type="button">Play Life Story</button>
             <?php endif; ?>
-            <?php if ($galleryImages): ?>
+            <?php if ($galleryImages || $communityPhotos): ?>
               <a class="btn btn-outline-light btn-lg" href="#gallery">View Gallery</a>
             <?php endif; ?>
           </div>
@@ -496,24 +699,62 @@ $messageFlash = get_flash();
         </section>
       <?php endif; ?>
 
-      <?php if ($galleryImages): ?>
+      <?php if ($galleryImages || $communityPhotos): ?>
         <section class="mobile-memorial-section" id="gallery">
           <h2>Gallery</h2>
-          <div class="preview-gallery row g-2">
-            <?php foreach ($galleryImages as $image): ?>
-              <div class="col-6">
-                <img
-                  class="img-fluid"
-                  src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
-                  alt="Memorial photo"
-                  data-lightbox-src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
-                  data-lightbox-alt="Memorial photo"
-                >
-              </div>
-            <?php endforeach; ?>
-          </div>
+          <?php if ($galleryImages): ?>
+            <h3 class="gallery-subtitle">Photos from the family</h3>
+            <div class="preview-gallery row g-2">
+              <?php foreach ($galleryImages as $image): ?>
+                <div class="col-6">
+                  <img
+                    class="img-fluid"
+                    src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
+                    alt="Memorial photo"
+                    data-lightbox-src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
+                    data-lightbox-alt="Memorial photo"
+                  >
+                </div>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+          <?php if ($communityPhotos): ?>
+            <h3 class="gallery-subtitle">Photos shared by friends</h3>
+            <div class="preview-gallery row g-2">
+              <?php foreach ($communityPhotos as $image): ?>
+                <div class="col-6">
+                  <figure class="community-photo-card">
+                    <img
+                      class="img-fluid"
+                      src="<?= htmlspecialchars($image['image_url'], ENT_QUOTES, 'UTF-8') ?>"
+                      alt="Shared memorial photo"
+                      data-lightbox-src="<?= htmlspecialchars($image['image_url'], ENT_QUOTES, 'UTF-8') ?>"
+                      data-lightbox-alt="Shared memorial photo"
+                    >
+                    <?php if (!empty($image['caption'])): ?>
+                      <figcaption><?= htmlspecialchars($image['caption'], ENT_QUOTES, 'UTF-8') ?></figcaption>
+                    <?php endif; ?>
+                  </figure>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
         </section>
       <?php endif; ?>
+      <section class="mobile-memorial-section" id="shared-photos">
+        <div class="messages-love-head">
+          <h2>Shared Photos</h2>
+          <button class="btn btn-light btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#photoShareModal">
+            Share a Photo
+          </button>
+        </div>
+        <?php if ($messageFlash): ?>
+          <p class="auth-alert auth-alert-<?= htmlspecialchars($messageFlash['type'], ENT_QUOTES, 'UTF-8') ?>">
+            <?= htmlspecialchars($messageFlash['message'], ENT_QUOTES, 'UTF-8') ?>
+          </p>
+        <?php endif; ?>
+        <p class="field-note">If you have a photo with our loved one, please share it with us. Photos appear only after family approval.</p>
+      </section>
 
       <?php if ($milestones): ?>
         <section class="mobile-memorial-section">
@@ -645,6 +886,58 @@ $messageFlash = get_flash();
                   <textarea class="form-control" name="message" rows="4" maxlength="700" required></textarea>
                 </label>
                 <p class="field-note mt-2">We will send a 1-minute OTP before submitting. Messages appear only after family approval.</p>
+                <button class="btn btn-primary w-100 mt-3" type="submit">Send OTP</button>
+              </form>
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal fade" id="photoShareModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content message-love-modal">
+          <div class="modal-header">
+            <h2 class="modal-title"><?= isset($_GET['verify_photo']) ? 'Enter Photo OTP' : 'Share Photos' ?></h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <?php if (isset($_GET['verify_photo'])): ?>
+              <form method="post" action="memorial.php?t=<?= urlencode($token) ?>&m=<?= (int) $memorial['id'] ?>#shared-photos">
+                <input type="hidden" name="form_action" value="verify_photo_otp">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+                <label>
+                  Email address
+                  <input class="form-control" type="email" name="sender_email" value="<?= htmlspecialchars($_GET['photo_email'] ?? '', ENT_QUOTES, 'UTF-8') ?>" required>
+                </label>
+                <label class="mt-3">
+                  OTP
+                  <input class="form-control" type="text" name="otp" inputmode="numeric" maxlength="6" required>
+                </label>
+                <button class="btn btn-primary w-100 mt-3" type="submit">Submit Photos for Approval</button>
+              </form>
+            <?php else: ?>
+              <form method="post" enctype="multipart/form-data" action="memorial.php?t=<?= urlencode($token) ?>&m=<?= (int) $memorial['id'] ?>#shared-photos">
+                <input type="hidden" name="form_action" value="request_photo_otp">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+                <label>
+                  Your name
+                  <input class="form-control" type="text" name="sender_name" maxlength="120" required>
+                </label>
+                <label class="mt-3">
+                  Email address
+                  <input class="form-control" type="email" name="sender_email" required>
+                </label>
+                <label class="mt-3">
+                  Photo caption
+                  <textarea class="form-control" name="caption" rows="3" maxlength="255" placeholder="When was this taken? What event or activity was this?" required></textarea>
+                </label>
+                <label class="mt-3">
+                  Photos
+                  <input class="form-control" type="file" name="shared_photos[]" accept="image/jpeg,image/png,image/webp" multiple required>
+                </label>
+                <p class="field-note mt-2">Maximum 2 photos per email submission. We will send a 1-minute OTP before submitting. Photos appear only after family approval.</p>
                 <button class="btn btn-primary w-100 mt-3" type="submit">Send OTP</button>
               </form>
             <?php endif; ?>
@@ -850,6 +1143,18 @@ $messageFlash = get_flash();
           cleanUrl.searchParams.delete('verify_message');
           cleanUrl.searchParams.delete('message_email');
           window.history.replaceState({}, '', cleanUrl.pathname + cleanUrl.search + '#messages');
+        }
+      <?php endif; ?>
+      <?php if (isset($_GET['verify_photo'])): ?>
+        const photoModal = document.getElementById('photoShareModal');
+        if (photoModal && window.bootstrap) {
+          bootstrap.Modal.getOrCreateInstance(photoModal).show();
+        }
+        if (window.history?.replaceState) {
+          const cleanPhotoUrl = new URL(window.location.href);
+          cleanPhotoUrl.searchParams.delete('verify_photo');
+          cleanPhotoUrl.searchParams.delete('photo_email');
+          window.history.replaceState({}, '', cleanPhotoUrl.pathname + cleanPhotoUrl.search + '#shared-photos');
         }
       <?php endif; ?>
       window.addEventListener('beforeunload', stopNarration);

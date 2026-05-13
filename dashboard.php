@@ -13,6 +13,18 @@ if (!defined('GEMINI_TEXT_MODEL')) {
     define('GEMINI_TEXT_MODEL', 'gemini-2.5-flash');
 }
 
+if (!defined('CLOUDINARY_CLOUD_NAME')) {
+    define('CLOUDINARY_CLOUD_NAME', '');
+}
+
+if (!defined('CLOUDINARY_API_KEY')) {
+    define('CLOUDINARY_API_KEY', '');
+}
+
+if (!defined('CLOUDINARY_API_SECRET')) {
+    define('CLOUDINARY_API_SECRET', '');
+}
+
 if (!function_exists('gemini_is_configured')) {
     function gemini_is_configured(): bool
     {
@@ -134,6 +146,81 @@ function delete_uploaded_asset(?string $relativePath): void
     if (str_starts_with($target, $uploadsRoot) && is_file($target)) {
         unlink($target);
     }
+}
+
+function cloudinary_is_configured(): bool
+{
+    return CLOUDINARY_CLOUD_NAME !== '' && CLOUDINARY_API_KEY !== '' && CLOUDINARY_API_SECRET !== '';
+}
+
+function upload_to_cloudinary(string $relativePath, string $folder): ?array
+{
+    if (!cloudinary_is_configured() || !function_exists('curl_init')) {
+        return null;
+    }
+
+    $path = str_replace('\\', '/', ltrim($relativePath, '/'));
+
+    if ($path === '' || !str_starts_with($path, 'uploads/') || str_contains($path, '..')) {
+        return null;
+    }
+
+    $absolutePath = realpath(__DIR__ . '/' . $path);
+    $uploadsRoot = realpath(__DIR__ . '/uploads');
+
+    if (!$absolutePath || !$uploadsRoot || !str_starts_with($absolutePath, rtrim($uploadsRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
+        return null;
+    }
+
+    $timestamp = time();
+    $paramsToSign = [
+        'folder' => $folder,
+        'timestamp' => $timestamp,
+    ];
+    ksort($paramsToSign);
+    $signaturePairs = [];
+
+    foreach ($paramsToSign as $key => $value) {
+        $signaturePairs[] = $key . '=' . $value;
+    }
+
+    $signatureBase = implode('&', $signaturePairs) . CLOUDINARY_API_SECRET;
+    $signature = sha1($signatureBase);
+    $curl = curl_init('https://api.cloudinary.com/v1_1/' . rawurlencode(CLOUDINARY_CLOUD_NAME) . '/image/upload');
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => [
+            'file' => new CURLFile($absolutePath),
+            'api_key' => CLOUDINARY_API_KEY,
+            'timestamp' => (string) $timestamp,
+            'folder' => $folder,
+            'signature' => $signature,
+        ],
+        CURLOPT_TIMEOUT => 120,
+    ]);
+
+    $response = curl_exec($curl);
+    $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    $error = curl_error($curl);
+    curl_close($curl);
+
+    if ($response === false || $status < 200 || $status >= 300) {
+        error_log('Cloudinary upload failed: HTTP ' . $status . ' ' . $error . ' ' . (string) $response);
+        return null;
+    }
+
+    $data = json_decode($response, true);
+
+    if (empty($data['secure_url'])) {
+        error_log('Cloudinary upload missing secure_url: ' . (string) $response);
+        return null;
+    }
+
+    return [
+        'secure_url' => (string) $data['secure_url'],
+        'public_id' => (string) ($data['public_id'] ?? ''),
+    ];
 }
 
 function load_uploaded_image_resource(string $path, string $mimeType)
@@ -388,6 +475,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         redirect_to('/dashboard.php?memorial_id=' . (int) $messageForAction['memorial_id'] . '#messages-admin');
+    }
+
+    if ($formAction === 'approve_community_photo' || $formAction === 'delete_community_photo') {
+        $photoId = (int) ($_POST['photo_id'] ?? 0);
+        $stmt = $pdo->prepare(
+            'SELECT cp.*, me.id AS memorial_id
+             FROM memorial_community_photos cp
+             INNER JOIN memorials me ON me.id = cp.memorial_id
+             WHERE cp.id = ? AND me.user_id = ? AND me.qr_group_id = ?
+             LIMIT 1'
+        );
+        $stmt->execute([$photoId, (int) $user['id'], (int) $qrGroup['id']]);
+        $photoForAction = $stmt->fetch();
+
+        if (!$photoForAction) {
+            flash('error', 'Shared photo not found.');
+            redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput . '#community-photos-admin');
+        }
+
+        if ($formAction === 'approve_community_photo') {
+            if (!$photoForAction['image_url']) {
+                $folder = 'alaalamo/memorial-' . (int) $photoForAction['memorial_id'] . '/community';
+                $cloudinary = upload_to_cloudinary((string) $photoForAction['temp_image_path'], $folder);
+
+                if (!$cloudinary) {
+                    flash('error', 'Cloudinary upload failed. Check Cloudinary config and Hostinger logs.');
+                    redirect_to('/dashboard.php?memorial_id=' . (int) $photoForAction['memorial_id'] . '#community-photos-admin');
+                }
+
+                $pdo->prepare(
+                    'UPDATE memorial_community_photos
+                     SET image_url = ?, cloudinary_public_id = ?, temp_image_path = NULL, status = "approved", approved_at = NOW()
+                     WHERE id = ?'
+                )->execute([$cloudinary['secure_url'], $cloudinary['public_id'], $photoId]);
+                delete_uploaded_asset($photoForAction['temp_image_path'] ?? null);
+            } else {
+                $pdo->prepare('UPDATE memorial_community_photos SET status = "approved", approved_at = NOW() WHERE id = ?')
+                    ->execute([$photoId]);
+            }
+
+            flash('success', 'Shared photo approved and published.');
+        } else {
+            delete_uploaded_asset($photoForAction['temp_image_path'] ?? null);
+            $pdo->prepare('DELETE FROM memorial_community_photos WHERE id = ?')->execute([$photoId]);
+            flash('success', 'Shared photo deleted.');
+        }
+
+        redirect_to('/dashboard.php?memorial_id=' . (int) $photoForAction['memorial_id'] . '#community-photos-admin');
     }
 
     if ($formAction === 'generate_milestone_ai') {
@@ -951,6 +1086,7 @@ $milestoneImages = [];
 $profileImages = [];
 $galleryImages = [];
 $memorialMessages = [];
+$communityPhotos = [];
 if ($memorial) {
     $stmt = $pdo->prepare(
         'SELECT mi.*
@@ -1001,6 +1137,16 @@ if ($memorial) {
     );
     $stmt->execute([(int) $memorial['id'], (int) $user['id'], (int) $qrGroup['id']]);
     $memorialMessages = $stmt->fetchAll();
+
+    $stmt = $pdo->prepare(
+        'SELECT cp.*
+         FROM memorial_community_photos cp
+         INNER JOIN memorials me ON me.id = cp.memorial_id
+         WHERE cp.memorial_id = ? AND me.user_id = ? AND me.qr_group_id = ?
+         ORDER BY cp.created_at DESC, cp.id DESC'
+    );
+    $stmt->execute([(int) $memorial['id'], (int) $user['id'], (int) $qrGroup['id']]);
+    $communityPhotos = $stmt->fetchAll();
 }
 
 $flash = get_flash();
@@ -1016,7 +1162,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-39') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-40') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
@@ -1291,6 +1437,58 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
       </form>
 
       <?php if ($memorial): ?>
+        <section class="memorial-form" id="community-photos-admin">
+          <div class="form-section">
+            <h2>Shared Photos from Visitors</h2>
+            <p>Approve photos shared by family and friends before they appear on the public memorial page. Approved photos are moved to Cloudinary.</p>
+            <?php if (!cloudinary_is_configured()): ?>
+              <p class="auth-alert auth-alert-error">Cloudinary is not configured yet in config.php. Approval of shared photos will fail until credentials are added.</p>
+            <?php endif; ?>
+            <div class="admin-message-list">
+              <?php if ($communityPhotos): ?>
+                <?php foreach ($communityPhotos as $photo): ?>
+                  <?php $photoSrc = $photo['image_url'] ?: $photo['temp_image_path']; ?>
+                  <article class="admin-message-card">
+                    <div>
+                      <span class="message-status message-status-<?= htmlspecialchars($photo['status'], ENT_QUOTES, 'UTF-8') ?>">
+                        <?= htmlspecialchars(ucfirst($photo['status']), ENT_QUOTES, 'UTF-8') ?>
+                      </span>
+                      <h3><?= htmlspecialchars($photo['sender_name'], ENT_QUOTES, 'UTF-8') ?></h3>
+                      <small><?= htmlspecialchars($photo['sender_email'], ENT_QUOTES, 'UTF-8') ?></small>
+                      <?php if (!empty($photo['caption'])): ?>
+                        <p><?= htmlspecialchars($photo['caption'], ENT_QUOTES, 'UTF-8') ?></p>
+                      <?php endif; ?>
+                      <?php if ($photoSrc): ?>
+                        <div class="image-preview-item community-photo-preview">
+                          <img src="<?= htmlspecialchars($photoSrc, ENT_QUOTES, 'UTF-8') ?>" alt="Shared photo preview">
+                        </div>
+                      <?php endif; ?>
+                    </div>
+                    <div class="admin-message-actions">
+                      <?php if ($photo['status'] !== 'approved'): ?>
+                        <form method="post" action="dashboard.php">
+                          <input type="hidden" name="form_action" value="approve_community_photo">
+                          <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+                          <input type="hidden" name="photo_id" value="<?= (int) $photo['id'] ?>">
+                          <button class="button-primary" type="submit">Approve</button>
+                        </form>
+                      <?php endif; ?>
+                      <form method="post" action="dashboard.php">
+                        <input type="hidden" name="form_action" value="delete_community_photo">
+                        <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+                        <input type="hidden" name="photo_id" value="<?= (int) $photo['id'] ?>">
+                        <button class="image-delete-link" type="submit">Delete</button>
+                      </form>
+                    </div>
+                  </article>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <p class="field-note">No visitor photos submitted yet.</p>
+              <?php endif; ?>
+            </div>
+          </div>
+        </section>
+
         <section class="memorial-form" id="messages-admin">
           <div class="form-section">
             <h2>Messages of Love</h2>
