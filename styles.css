@@ -1392,6 +1392,9 @@ h2 {
   margin: 0 0 14px;
   color: var(--memorial-tertiary-text);
   font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .mobile-memorial-section p {

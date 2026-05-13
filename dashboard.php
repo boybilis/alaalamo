@@ -698,7 +698,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-27') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-29') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
@@ -843,6 +843,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
                 <span class="field-note">Page background</span>
               </label>
             </div>
+            <button class="button-primary form-submit" type="submit">Save Memorial Details</button>
           </div>
         </section>
 
@@ -933,8 +934,6 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
             </div>
           </div>
         </section>
-
-        <button class="button-primary form-submit" type="submit">Save Memorial Details</button>
       </form>
 
       <?php if ($memorial && $planLimits['life_story']): ?>
