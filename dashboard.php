@@ -298,7 +298,12 @@ if (isset($_GET['new']) && count($memorials) < MAX_MEMORIALS_PER_QR) {
 
 $milestones = [];
 $milestoneImages = [];
+$profileImages = [];
 if ($memorial) {
+    $stmt = $pdo->prepare('SELECT * FROM memorial_images WHERE memorial_id = ? ORDER BY id ASC');
+    $stmt->execute([(int) $memorial['id']]);
+    $profileImages = $stmt->fetchAll();
+
     $stmt = $pdo->prepare('SELECT * FROM milestones WHERE memorial_id = ? ORDER BY sort_order ASC, id ASC');
     $stmt->execute([(int) $memorial['id']]);
     $milestones = $stmt->fetchAll();
@@ -428,6 +433,15 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
               <input type="file" name="profile_images[]" accept="image/jpeg,image/png,image/webp" multiple>
               <span class="field-note">You may upload memorial profile photos. Premium supports up to <?= MAX_PROFILE_IMAGES ?> gallery images.</span>
             </label>
+            <div class="image-preview-list form-full">
+              <?php if ($profileImages): ?>
+                <?php foreach ($profileImages as $image): ?>
+                  <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Profile image preview">
+                <?php endforeach; ?>
+              <?php else: ?>
+                <p>No profile images yet.</p>
+              <?php endif; ?>
+            </div>
           </div>
         </section>
 
@@ -458,7 +472,7 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
                   <input type="file" name="milestone_images[<?= $i ?>][]" accept="image/jpeg,image/png,image/webp" multiple>
                   <span class="field-note">Maximum <?= MAX_MILESTONE_IMAGES ?> images for this milestone.</span>
                 </label>
-                <div class="milestone-image-preview form-full">
+                <div class="image-preview-list form-full">
                   <?php if ($imagesForMilestone): ?>
                     <?php foreach ($imagesForMilestone as $image): ?>
                       <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Milestone image preview">

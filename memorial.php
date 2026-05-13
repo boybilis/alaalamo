@@ -135,12 +135,18 @@ if ($milestones) {
   </head>
   <body class="memorial-preview-page">
     <main class="mobile-memorial mx-auto">
-      <section
-        class="mobile-memorial-cover d-flex align-items-end"
-        <?php if ($coverImage): ?>
-          style="background-image: url('<?= htmlspecialchars($coverImage, ENT_QUOTES, 'UTF-8') ?>');"
+      <section class="mobile-memorial-cover d-flex align-items-end">
+        <?php if ($images): ?>
+          <div class="profile-cover-slideshow" aria-hidden="true">
+            <?php foreach ($images as $imageIndex => $image): ?>
+              <img
+                class="<?= $imageIndex === 0 ? 'is-active' : '' ?>"
+                src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
+                alt=""
+              >
+            <?php endforeach; ?>
+          </div>
         <?php endif; ?>
-      >
         <div class="mobile-memorial-cover-content w-100">
           <p class="section-eyebrow">In loving memory</p>
           <h1><?= htmlspecialchars($memorial['loved_one_name'], ENT_QUOTES, 'UTF-8') ?></h1>
@@ -239,6 +245,7 @@ if ($milestones) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
     <script>
       const playButton = document.querySelector('.story-play-button');
+      const profileCoverImages = Array.from(document.querySelectorAll('.profile-cover-slideshow img'));
       const milestones = Array.from(document.querySelectorAll('.preview-milestone'));
       const modal = document.querySelector('.story-modal');
       const modalImages = Array.from(document.querySelectorAll('.story-modal-image'));
@@ -246,7 +253,17 @@ if ($milestones) {
       const modalText = document.querySelector('.story-modal-text');
       const modalClose = document.querySelector('.story-modal-close');
       let slideTimer = null;
+      let profileCoverTimer = null;
       let activeModalImage = 0;
+
+      if (profileCoverImages.length > 1) {
+        let profileIndex = 0;
+        profileCoverTimer = setInterval(() => {
+          profileCoverImages[profileIndex].classList.remove('is-active');
+          profileIndex = (profileIndex + 1) % profileCoverImages.length;
+          profileCoverImages[profileIndex].classList.add('is-active');
+        }, 5200);
+      }
 
       function stopNarration() {
         window.speechSynthesis?.cancel();
