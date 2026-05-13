@@ -297,10 +297,20 @@ if (isset($_GET['new']) && count($memorials) < MAX_MEMORIALS_PER_QR) {
 }
 
 $milestones = [];
+$milestoneImages = [];
 if ($memorial) {
     $stmt = $pdo->prepare('SELECT * FROM milestones WHERE memorial_id = ? ORDER BY sort_order ASC, id ASC');
     $stmt->execute([(int) $memorial['id']]);
     $milestones = $stmt->fetchAll();
+
+    if ($milestones) {
+        $imageStmt = $pdo->prepare('SELECT * FROM milestone_images WHERE milestone_id = ? ORDER BY id ASC');
+
+        foreach ($milestones as $loadedMilestone) {
+            $imageStmt->execute([(int) $loadedMilestone['id']]);
+            $milestoneImages[(int) $loadedMilestone['id']] = $imageStmt->fetchAll();
+        }
+    }
 }
 
 $flash = get_flash();
@@ -427,8 +437,18 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
 
           <?php for ($i = 0; $i < MAX_MILESTONES; $i++): ?>
             <?php $milestone = $milestones[$i] ?? null; ?>
+            <?php $imagesForMilestone = $milestone ? ($milestoneImages[(int) $milestone['id']] ?? []) : []; ?>
             <div class="milestone-box">
               <h3>Milestone <?= $i + 1 ?></h3>
+              <div class="milestone-image-preview">
+                <?php if ($imagesForMilestone): ?>
+                  <?php foreach ($imagesForMilestone as $image): ?>
+                    <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Milestone image preview">
+                  <?php endforeach; ?>
+                <?php else: ?>
+                  <p>No milestone images yet.</p>
+                <?php endif; ?>
+              </div>
               <div class="form-grid">
                 <label>
                   Title
