@@ -89,7 +89,7 @@ $pricingPlans = [
             'Everything in Regular',
             'Gallery with up to 20 images',
             'Guided milestones from the form',
-            'Autobiography shaped from the memories provided',
+            'Biography shaped from the memories provided',
             'Additional premium memorials at PHP 700 each',
         ],
         'featured' => true,
@@ -114,7 +114,7 @@ $registrationFlash = get_flash();
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
     >
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-38') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-39') ?>">
   </head>
   <body>
     <header class="site-header" aria-label="Main navigation">

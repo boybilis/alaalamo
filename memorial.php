@@ -306,7 +306,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-38') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-39') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -425,7 +425,7 @@ $messageFlash = get_flash();
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-38') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-39') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -689,11 +689,15 @@ $messageFlash = get_flash();
         });
       }
 
-      function runSlideshow(images) {
+      function runSlideshow(images, narrationText = '') {
         clearInterval(slideTimer);
         if (!modalImages.length || !images.length) return;
 
         let index = 0;
+        const slideCount = Math.min(images.length, 6);
+        const estimatedWords = narrationText.trim().split(/\s+/).filter(Boolean).length || 50;
+        const estimatedNarrationMs = Math.max(9000, Math.min(18000, estimatedWords * 300));
+        const slideDelay = Math.max(1400, Math.floor(estimatedNarrationMs / Math.max(slideCount, 1)));
         activeModalImage = 0;
         modalImages.forEach((image, imageIndex) => {
           image.classList.toggle('is-active', imageIndex === 0);
@@ -701,14 +705,14 @@ $messageFlash = get_flash();
         });
 
         slideTimer = setInterval(() => {
-          index = (index + 1) % images.length;
+          index = (index + 1) % slideCount;
           const nextImage = modalImages[activeModalImage === 0 ? 1 : 0];
           const currentImage = modalImages[activeModalImage];
           nextImage.src = images[index];
           nextImage.classList.add('is-active');
           currentImage.classList.remove('is-active');
           activeModalImage = activeModalImage === 0 ? 1 : 0;
-        }, 5200);
+        }, slideDelay);
       }
 
       function scoreNarrationVoice(voice) {
@@ -784,11 +788,11 @@ $messageFlash = get_flash();
         modal?.setAttribute('aria-hidden', 'false');
         if (modalTitle) modalTitle.textContent = title;
         if (modalText) modalText.textContent = text;
-        runSlideshow(images);
+        runSlideshow(images, text);
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.voice = preferredNarrationVoice || selectNarrationVoice();
-        utterance.rate = 0.78;
+        utterance.rate = 0.92;
         utterance.pitch = 0.72;
         utterance.volume = 1;
         utterance.onend = () => speakMilestone(index + 1);
