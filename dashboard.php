@@ -5,6 +5,41 @@ require __DIR__ . '/config.php';
 
 start_app_session();
 
+function ini_bytes(string $value): int
+{
+    $value = trim($value);
+    $number = (float) $value;
+    $unit = strtolower(substr($value, -1));
+
+    if ($unit === 'g') {
+        return (int) ($number * 1024 * 1024 * 1024);
+    }
+
+    if ($unit === 'm') {
+        return (int) ($number * 1024 * 1024);
+    }
+
+    if ($unit === 'k') {
+        return (int) ($number * 1024);
+    }
+
+    return (int) $number;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+    $postMaxBytes = ini_bytes((string) ini_get('post_max_size'));
+
+    if ($postMaxBytes > 0 && (int) $_SERVER['CONTENT_LENGTH'] > $postMaxBytes) {
+        http_response_code(413);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'ok' => false,
+            'message' => 'Upload is too large for the server limit. Try one smaller photo or reduce the image size first.',
+        ]);
+        exit;
+    }
+}
+
 if (!defined('GEMINI_API_KEY')) {
     define('GEMINI_API_KEY', '');
 }
@@ -124,6 +159,19 @@ function nested_uploaded_file_at(array $files, int $groupIndex, int $fileIndex):
         'error' => $files['error'][$groupIndex][$fileIndex] ?? UPLOAD_ERR_NO_FILE,
         'size' => $files['size'][$groupIndex][$fileIndex] ?? 0,
     ];
+}
+
+function upload_error_message(int $errorCode): string
+{
+    return match ($errorCode) {
+        UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'The image is larger than the server upload limit.',
+        UPLOAD_ERR_PARTIAL => 'The image was only partially uploaded. Please try again.',
+        UPLOAD_ERR_NO_FILE => 'No image was selected.',
+        UPLOAD_ERR_NO_TMP_DIR => 'The server upload folder is missing.',
+        UPLOAD_ERR_CANT_WRITE => 'The server could not save the uploaded image.',
+        UPLOAD_ERR_EXTENSION => 'A server extension stopped the upload.',
+        default => 'The image could not be uploaded.',
+    };
 }
 
 function delete_uploaded_asset(?string $relativePath): void
@@ -277,7 +325,15 @@ function save_resized_jpeg($source, int $sourceWidth, int $sourceHeight, int $ma
 
 function store_mobile_optimized_image(array $file, string $subdirectory): ?string
 {
-    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+    $uploadError = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+
+    if ($uploadError !== UPLOAD_ERR_OK) {
+        error_log('Image upload failed before optimization: ' . upload_error_message($uploadError));
+        return null;
+    }
+
+    if (($file['size'] ?? 0) > 3 * 1024 * 1024) {
+        error_log('Image upload rejected because it is above 3MB.');
         return null;
     }
 
@@ -286,6 +342,26 @@ function store_mobile_optimized_image(array $file, string $subdirectory): ?strin
     $mimeType = $finfo->file($file['tmp_name']);
 
     if (!in_array($mimeType, $allowedTypes, true)) {
+        error_log('Image upload rejected because MIME type is not allowed: ' . (string) $mimeType);
+        return null;
+    }
+
+    if (function_exists('set_time_limit')) {
+        @set_time_limit(120);
+    }
+
+    $dimensions = @getimagesize($file['tmp_name']);
+
+    if (!$dimensions) {
+        error_log('Image upload rejected because dimensions could not be read.');
+        return null;
+    }
+
+    $estimatedMemory = ((int) $dimensions[0] * (int) $dimensions[1] * 5) + (20 * 1024 * 1024);
+    $memoryLimit = ini_bytes((string) ini_get('memory_limit'));
+
+    if ($memoryLimit > 0 && $estimatedMemory > ($memoryLimit * 0.75)) {
+        error_log('Image upload rejected because dimensions are too large for PHP memory: ' . (int) $dimensions[0] . 'x' . (int) $dimensions[1]);
         return null;
     }
 
@@ -858,12 +934,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $uploaded = 0;
         $uploadedHtml = [];
+        $uploadErrorMessage = 'No valid milestone images were uploaded.';
         if (!empty($_FILES['milestone_images']['name'])) {
             $imageCount = min(count($_FILES['milestone_images']['name']), $remainingSlots);
 
             for ($i = 0; $i < $imageCount; $i++) {
+                $uploadFile = uploaded_file_at($_FILES['milestone_images'], $i);
+
+                if (($uploadFile['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                    $uploadErrorMessage = upload_error_message((int) $uploadFile['error']);
+                    continue;
+                }
+
                 $path = store_mobile_optimized_image(
-                    uploaded_file_at($_FILES['milestone_images'], $i),
+                    $uploadFile,
                     'users/' . (int) $user['id'] . '/memorials/' . (int) $targetMilestone['memorial_id'] . '/milestones/' . (int) $targetMilestone['id']
                 );
 
@@ -875,6 +959,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'image_path' => $path,
                     ], 'milestone');
                     $uploaded++;
+                } else {
+                    $uploadErrorMessage = 'The image could not be processed. Try a JPG photo under 3MB.';
                 }
             }
         }
@@ -882,12 +968,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($isAjax) {
             json_response([
                 'ok' => $uploaded > 0,
-                'message' => $uploaded > 0 ? 'Milestone images uploaded.' : 'No valid milestone images were uploaded.',
+                'message' => $uploaded > 0 ? 'Milestone images uploaded.' : $uploadErrorMessage,
                 'html' => implode('', $uploadedHtml),
             ], $uploaded > 0 ? 200 : 422);
         }
 
-        flash($uploaded > 0 ? 'success' : 'error', $uploaded > 0 ? 'Milestone images uploaded.' : 'No valid milestone images were uploaded.');
+        flash($uploaded > 0 ? 'success' : 'error', $uploaded > 0 ? 'Milestone images uploaded.' : $uploadErrorMessage);
         redirect_to('/dashboard.php?memorial_id=' . (int) $targetMilestone['memorial_id']);
     }
 
@@ -1297,7 +1383,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
             <label class="form-full">
               Profile photos
               <input type="file" name="profile_images[]" accept="image/jpeg,image/png,image/webp" multiple>
-              <span class="field-note"><?= count($profileImages) ?> of <?= $planLimits['profile_images'] ?> profile photos used. Photos are resized and optimized for mobile.</span>
+              <span class="field-note"><?= count($profileImages) ?> of <?= $planLimits['profile_images'] ?> profile photos used. Upload JPG, PNG, or WebP photos under 3MB.</span>
             </label>
             <div class="image-preview-list form-full">
               <?php if ($profileImages): ?>
@@ -1381,7 +1467,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
                   Milestone images
                   <?php if ($milestone): ?>
                     <input type="file" name="milestone_images[]" data-milestone-images accept="image/jpeg,image/png,image/webp" multiple>
-                    <span class="field-note">Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. Photos are resized and optimized for mobile.</span>
+                    <span class="field-note">Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. Upload JPG, PNG, or WebP photos under 3MB.</span>
                   <?php else: ?>
                     <input type="file" name="milestone_images[]" data-milestone-images accept="image/jpeg,image/png,image/webp" multiple disabled>
                     <span class="field-note">Save this milestone first, then upload images for it.</span>
@@ -1420,7 +1506,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
             <label class="form-full">
               Gallery images
               <input type="file" name="gallery_images[]" accept="image/jpeg,image/png,image/webp" multiple>
-              <span class="field-note"><?= count($galleryImages) ?> of <?= $planLimits['gallery_images'] ?> gallery images used. Photos are resized and optimized for mobile.</span>
+              <span class="field-note"><?= count($galleryImages) ?> of <?= $planLimits['gallery_images'] ?> gallery images used. Upload JPG, PNG, or WebP photos under 3MB.</span>
             </label>
             <div class="image-preview-list form-full">
               <?php if ($galleryImages): ?>
@@ -1666,7 +1752,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
             $box.find('[data-milestone-id]').val(response.milestone_id);
             $box.find('[data-milestone-images], [data-upload-milestone], [data-delete-milestone]').prop('disabled', false);
             syncMilestoneEnhancementButton($box);
-            $box.find('[data-milestone-images]').siblings('.field-note').text('Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. Photos are resized and optimized for mobile.');
+            $box.find('[data-milestone-images]').siblings('.field-note').text('Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. Upload JPG, PNG, or WebP photos under 3MB.');
             setStatus($box, response.message || 'Milestone saved.', 'success');
           }).fail(function (xhr) {
             setStatus($box, ajaxErrorMessage(xhr, 'Milestone could not be saved.'), 'error');
@@ -1790,15 +1876,17 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
             dataType: 'json',
             data: formData,
             processData: false,
-            contentType: false
+            contentType: false,
+            timeout: 120000
           }).done(function (response) {
             const $preview = $box.find('[data-milestone-preview]');
             $preview.find('p').remove();
             $preview.append(response.html || '');
             $box.find('[data-milestone-images]').val('');
             setStatus($box, response.message || 'Images uploaded.', 'success');
-          }).fail(function (xhr) {
-            setStatus($box, ajaxErrorMessage(xhr, 'Images could not be uploaded.'), 'error');
+          }).fail(function (xhr, textStatus) {
+            const timeoutMessage = 'Upload timed out. Try uploading one smaller JPG photo first.';
+            setStatus($box, textStatus === 'timeout' ? timeoutMessage : ajaxErrorMessage(xhr, 'Images could not be uploaded. Try a JPG photo under 3MB.'), 'error');
           }).always(function () {
             $button.prop('disabled', false);
           });
