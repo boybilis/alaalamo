@@ -197,14 +197,15 @@ if ($milestones) {
         <section class="mobile-memorial-section">
           <h2>Life Milestones</h2>
           <?php foreach ($milestones as $milestone): ?>
+            <?php $imagesForMilestone = $milestoneImages[(int) $milestone['id']] ?? []; ?>
             <article
               class="preview-milestone"
               data-narration="<?= htmlspecialchars($milestone['ai_narration_text'] ?: $milestone['description'], ENT_QUOTES, 'UTF-8') ?>"
+              data-images="<?= htmlspecialchars(json_encode(array_column($imagesForMilestone, 'image_path'), JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8') ?>"
             >
               <span><?= htmlspecialchars($milestone['milestone_date'], ENT_QUOTES, 'UTF-8') ?></span>
               <h3><?= htmlspecialchars($milestone['title'], ENT_QUOTES, 'UTF-8') ?></h3>
               <p><?= nl2br(htmlspecialchars($milestone['ai_narration_text'] ?: $milestone['description'], ENT_QUOTES, 'UTF-8')) ?></p>
-              <?php $imagesForMilestone = $milestoneImages[(int) $milestone['id']] ?? []; ?>
               <?php if ($imagesForMilestone): ?>
                 <div class="milestone-slideshow">
                   <?php foreach ($imagesForMilestone as $imageIndex => $image): ?>
@@ -224,13 +225,12 @@ if ($milestones) {
     <div class="story-modal" aria-hidden="true">
       <div class="story-modal-backdrop"></div>
       <section class="story-modal-panel" role="dialog" aria-modal="true" aria-label="Life story narration">
-        <button class="story-modal-close" type="button" aria-label="Close life story">Ã—</button>
+        <button class="story-modal-close" type="button" aria-label="Close life story">&times;</button>
         <div class="story-modal-media">
           <img class="story-modal-image story-modal-image-a is-active" src="" alt="">
           <img class="story-modal-image story-modal-image-b" src="" alt="">
         </div>
         <div class="story-modal-copy">
-          <p class="section-eyebrow story-modal-step">Life story</p>
           <h2 class="story-modal-title">Life Story</h2>
           <p class="story-modal-text"></p>
         </div>
@@ -244,7 +244,6 @@ if ($milestones) {
       const modalImages = Array.from(document.querySelectorAll('.story-modal-image'));
       const modalTitle = document.querySelector('.story-modal-title');
       const modalText = document.querySelector('.story-modal-text');
-      const modalStep = document.querySelector('.story-modal-step');
       const modalClose = document.querySelector('.story-modal-close');
       let slideTimer = null;
       let activeModalImage = 0;
@@ -290,7 +289,12 @@ if ($milestones) {
         const milestone = milestones[index];
         const text = milestone.dataset.narration || '';
         const title = milestone.querySelector('h3')?.textContent || 'Life Story';
-        const images = Array.from(milestone.querySelectorAll('.milestone-slideshow img')).map((image) => image.src);
+        let images = [];
+        try {
+          images = JSON.parse(milestone.dataset.images || '[]');
+        } catch (error) {
+          images = [];
+        }
         if (!text.trim()) {
           speakMilestone(index + 1);
           return;
@@ -304,7 +308,6 @@ if ($milestones) {
         modal?.setAttribute('aria-hidden', 'false');
         if (modalTitle) modalTitle.textContent = title;
         if (modalText) modalText.textContent = text;
-        if (modalStep) modalStep.textContent = `Milestone ${index + 1} of ${milestones.length}`;
         runSlideshow(images);
 
         const utterance = new SpeechSynthesisUtterance(text);
