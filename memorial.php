@@ -124,7 +124,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-12') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-15') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial">
@@ -155,7 +155,8 @@ if ($isGroupView): ?>
         </div>
       </section>
       <footer class="mobile-memorial-footer">
-        <a href="https://alaalamo.site" target="_blank" rel="noopener">All rights reserved AlaalaMo</a>
+        <span>All rights reserved</span>
+        <a href="https://alaalamo.site" target="_blank" rel="noopener">AlaalaMo</a>
       </footer>
     </main>
   </body>
@@ -199,7 +200,7 @@ if ($milestones) {
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-12') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-15') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -284,13 +285,9 @@ if ($milestones) {
               <h3><?= htmlspecialchars($milestone['title'], ENT_QUOTES, 'UTF-8') ?></h3>
               <p><?= nl2br(htmlspecialchars($milestone['ai_narration_text'] ?: $milestone['description'], ENT_QUOTES, 'UTF-8')) ?></p>
               <?php if ($imagesForMilestone): ?>
-                <div class="milestone-slideshow">
-                  <?php foreach ($imagesForMilestone as $imageIndex => $image): ?>
-                    <img
-                      class="<?= $imageIndex === 0 ? 'is-active' : '' ?>"
-                      src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
-                      alt="Milestone photo"
-                    >
+                <div class="milestone-image-grid">
+                  <?php foreach ($imagesForMilestone as $image): ?>
+                    <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Milestone photo">
                   <?php endforeach; ?>
                 </div>
               <?php endif; ?>
@@ -299,7 +296,8 @@ if ($milestones) {
         </section>
       <?php endif; ?>
       <footer class="mobile-memorial-footer">
-        <a href="https://alaalamo.site" target="_blank" rel="noopener">All rights reserved AlaalaMo</a>
+        <span>All rights reserved</span>
+        <a href="https://alaalamo.site" target="_blank" rel="noopener">AlaalaMo</a>
       </footer>
     </main>
     <div class="story-modal" aria-hidden="true">
