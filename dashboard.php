@@ -136,6 +136,124 @@ function delete_uploaded_asset(?string $relativePath): void
     }
 }
 
+function load_uploaded_image_resource(string $path, string $mimeType)
+{
+    if ($mimeType === 'image/jpeg' && function_exists('imagecreatefromjpeg')) {
+        $image = @imagecreatefromjpeg($path);
+
+        if ($image && function_exists('exif_read_data')) {
+            $exif = @exif_read_data($path);
+            $orientation = (int) ($exif['Orientation'] ?? 0);
+
+            if ($orientation === 3) {
+                $image = imagerotate($image, 180, 0);
+            } elseif ($orientation === 6) {
+                $image = imagerotate($image, -90, 0);
+            } elseif ($orientation === 8) {
+                $image = imagerotate($image, 90, 0);
+            }
+        }
+
+        return $image;
+    }
+
+    if ($mimeType === 'image/png' && function_exists('imagecreatefrompng')) {
+        return @imagecreatefrompng($path);
+    }
+
+    if ($mimeType === 'image/webp' && function_exists('imagecreatefromwebp')) {
+        return @imagecreatefromwebp($path);
+    }
+
+    return false;
+}
+
+function save_resized_jpeg($source, int $sourceWidth, int $sourceHeight, int $maxDimension, int $quality, string $target): bool
+{
+    $scale = min(1, $maxDimension / max($sourceWidth, $sourceHeight));
+    $targetWidth = max(1, (int) round($sourceWidth * $scale));
+    $targetHeight = max(1, (int) round($sourceHeight * $scale));
+    $canvas = imagecreatetruecolor($targetWidth, $targetHeight);
+
+    if (!$canvas) {
+        return false;
+    }
+
+    $white = imagecolorallocate($canvas, 255, 255, 255);
+    imagefilledrectangle($canvas, 0, 0, $targetWidth, $targetHeight, $white);
+    imagecopyresampled($canvas, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
+    $saved = imagejpeg($canvas, $target, $quality);
+    imagedestroy($canvas);
+
+    return $saved;
+}
+
+function store_mobile_optimized_image(array $file, string $subdirectory): ?string
+{
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        return null;
+    }
+
+    $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mimeType = $finfo->file($file['tmp_name']);
+
+    if (!in_array($mimeType, $allowedTypes, true)) {
+        return null;
+    }
+
+    $relativeDirectory = 'uploads/' . trim($subdirectory, '/');
+    $absoluteDirectory = __DIR__ . '/' . $relativeDirectory;
+    ensure_upload_dir($absoluteDirectory);
+
+    if (!function_exists('imagecreatetruecolor') || !function_exists('imagejpeg')) {
+        return store_uploaded_image($file, $subdirectory);
+    }
+
+    $source = load_uploaded_image_resource($file['tmp_name'], $mimeType);
+
+    if (!$source) {
+        return store_uploaded_image($file, $subdirectory);
+    }
+
+    $sourceWidth = imagesx($source);
+    $sourceHeight = imagesy($source);
+
+    if ($sourceWidth <= 0 || $sourceHeight <= 0) {
+        imagedestroy($source);
+        return null;
+    }
+
+    $targetBytes = 1024 * 1024;
+    $filename = bin2hex(random_bytes(16)) . '.jpg';
+    $target = $absoluteDirectory . '/' . $filename;
+    $maxDimensions = [1600, 1400, 1200, 1000, 800, 640];
+    $qualities = [82, 76, 70, 64, 58, 52];
+    $saved = false;
+
+    foreach ($maxDimensions as $maxDimension) {
+        foreach ($qualities as $quality) {
+            if (!save_resized_jpeg($source, $sourceWidth, $sourceHeight, $maxDimension, $quality, $target)) {
+                continue;
+            }
+
+            $saved = true;
+
+            if (filesize($target) <= $targetBytes) {
+                break 2;
+            }
+        }
+    }
+
+    imagedestroy($source);
+
+    if (!$saved || !is_file($target)) {
+        return null;
+    }
+
+    return $relativeDirectory . '/' . $filename;
+}
+
 function clean_hex_color(string $value, string $fallback): string
 {
     $color = trim($value);
@@ -609,7 +727,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $imageCount = min(count($_FILES['milestone_images']['name']), $remainingSlots);
 
             for ($i = 0; $i < $imageCount; $i++) {
-                $path = store_uploaded_image(
+                $path = store_mobile_optimized_image(
                     uploaded_file_at($_FILES['milestone_images'], $i),
                     'users/' . (int) $user['id'] . '/memorials/' . (int) $targetMilestone['memorial_id'] . '/milestones/' . (int) $targetMilestone['id']
                 );
@@ -724,7 +842,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $profileUploadCount = min(count($_FILES['profile_images']['name']), $remainingSlots);
 
             for ($i = 0; $i < $profileUploadCount; $i++) {
-                $path = store_uploaded_image(uploaded_file_at($_FILES['profile_images'], $i), 'users/' . (int) $user['id'] . '/memorials/' . $memorialId . '/profile');
+                $path = store_mobile_optimized_image(uploaded_file_at($_FILES['profile_images'], $i), 'users/' . (int) $user['id'] . '/memorials/' . $memorialId . '/profile');
 
                 if ($path) {
                     $pdo->prepare('INSERT INTO memorial_images (memorial_id, image_type, image_path) VALUES (?, "profile", ?)')
@@ -741,7 +859,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $galleryUploadCount = min(count($_FILES['gallery_images']['name']), $remainingSlots);
 
             for ($i = 0; $i < $galleryUploadCount; $i++) {
-                $path = store_uploaded_image(uploaded_file_at($_FILES['gallery_images'], $i), 'users/' . (int) $user['id'] . '/memorials/' . $memorialId . '/gallery');
+                $path = store_mobile_optimized_image(uploaded_file_at($_FILES['gallery_images'], $i), 'users/' . (int) $user['id'] . '/memorials/' . $memorialId . '/gallery');
 
                 if ($path) {
                     $pdo->prepare('INSERT INTO memorial_images (memorial_id, image_type, image_path) VALUES (?, "gallery", ?)')
@@ -1031,7 +1149,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
             <label class="form-full">
               Profile photos
               <input type="file" name="profile_images[]" accept="image/jpeg,image/png,image/webp" multiple>
-              <span class="field-note"><?= count($profileImages) ?> of <?= $planLimits['profile_images'] ?> profile photos used. These photos power the hero slideshow.</span>
+              <span class="field-note"><?= count($profileImages) ?> of <?= $planLimits['profile_images'] ?> profile photos used. Photos are resized and optimized for mobile.</span>
             </label>
             <div class="image-preview-list form-full">
               <?php if ($profileImages): ?>
@@ -1115,7 +1233,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
                   Milestone images
                   <?php if ($milestone): ?>
                     <input type="file" name="milestone_images[]" data-milestone-images accept="image/jpeg,image/png,image/webp" multiple>
-                    <span class="field-note">Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. This upload will not change the QR code.</span>
+                    <span class="field-note">Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. Photos are resized and optimized for mobile.</span>
                   <?php else: ?>
                     <input type="file" name="milestone_images[]" data-milestone-images accept="image/jpeg,image/png,image/webp" multiple disabled>
                     <span class="field-note">Save this milestone first, then upload images for it.</span>
@@ -1154,7 +1272,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
             <label class="form-full">
               Gallery images
               <input type="file" name="gallery_images[]" accept="image/jpeg,image/png,image/webp" multiple>
-              <span class="field-note"><?= count($galleryImages) ?> of <?= $planLimits['gallery_images'] ?> gallery images used.</span>
+              <span class="field-note"><?= count($galleryImages) ?> of <?= $planLimits['gallery_images'] ?> gallery images used. Photos are resized and optimized for mobile.</span>
             </label>
             <div class="image-preview-list form-full">
               <?php if ($galleryImages): ?>
@@ -1348,7 +1466,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
             $box.find('[data-milestone-id]').val(response.milestone_id);
             $box.find('[data-milestone-images], [data-upload-milestone], [data-delete-milestone]').prop('disabled', false);
             syncMilestoneEnhancementButton($box);
-            $box.find('[data-milestone-images]').siblings('.field-note').text('Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. This upload will not change the QR code.');
+            $box.find('[data-milestone-images]').siblings('.field-note').text('Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. Photos are resized and optimized for mobile.');
             setStatus($box, response.message || 'Milestone saved.', 'success');
           }).fail(function (xhr) {
             setStatus($box, ajaxErrorMessage(xhr, 'Milestone could not be saved.'), 'error');
