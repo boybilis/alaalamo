@@ -76,10 +76,12 @@ CREATE TABLE IF NOT EXISTS memorials (
 CREATE TABLE IF NOT EXISTS memorial_images (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   memorial_id INT UNSIGNED NOT NULL,
+  image_type ENUM('profile', 'gallery') NOT NULL DEFAULT 'gallery',
   image_path VARCHAR(255) NOT NULL,
   caption VARCHAR(255) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX memorial_images_memorial_id_idx (memorial_id),
+  INDEX memorial_images_type_idx (memorial_id, image_type),
   CONSTRAINT memorial_images_memorial_id_fk
     FOREIGN KEY (memorial_id) REFERENCES memorials(id)
     ON DELETE CASCADE

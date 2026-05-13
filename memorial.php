@@ -142,11 +142,15 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-23') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-27') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
       <section class="mobile-memorial-header">
+        <a class="mobile-memorial-brand" href="https://alaalamo.site" target="_blank" rel="noopener" aria-label="AlaalaMo home">
+          <span class="brand-mark" aria-hidden="true">A</span>
+          <span>AlaalaMo</span>
+        </a>
         <p class="section-eyebrow">Family tribute</p>
         <h1>Memorials in this QR</h1>
         <p>Select a loved one to view their memorial page.</p>
@@ -155,14 +159,36 @@ if ($isGroupView): ?>
         <div class="memorial-card-list">
           <?php foreach ($memorials as $item): ?>
             <?php
-              $imageStmt = $pdo->prepare('SELECT image_path FROM memorial_images WHERE memorial_id = ? ORDER BY id ASC LIMIT 1');
+              $imageStmt = $pdo->prepare(
+                  'SELECT image_path
+                   FROM memorial_images
+                   WHERE memorial_id = ? AND image_type = "profile"
+                   ORDER BY id ASC
+                   LIMIT 1'
+              );
               $imageStmt->execute([(int) $item['id']]);
               $image = $imageStmt->fetchColumn();
+              if (!$image) {
+                  $imageStmt = $pdo->prepare(
+                      'SELECT image_path
+                       FROM memorial_images
+                       WHERE memorial_id = ? AND image_type = "gallery"
+                       ORDER BY id ASC
+                       LIMIT 1'
+                  );
+                  $imageStmt->execute([(int) $item['id']]);
+                  $image = $imageStmt->fetchColumn();
+              }
               $itemUrl = 'memorial.php?t=' . urlencode($token) . '&m=' . (int) $item['id'];
             ?>
             <a class="memorial-select-card" href="<?= htmlspecialchars($itemUrl, ENT_QUOTES, 'UTF-8') ?>">
               <?php if ($image): ?>
-                <img src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($item['loved_one_name'], ENT_QUOTES, 'UTF-8') ?>">
+                <img
+                  src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>"
+                  alt="<?= htmlspecialchars($item['loved_one_name'], ENT_QUOTES, 'UTF-8') ?>"
+                  data-lightbox-src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>"
+                  data-lightbox-alt="<?= htmlspecialchars($item['loved_one_name'], ENT_QUOTES, 'UTF-8') ?>"
+                >
               <?php endif; ?>
               <span>
                 <strong><?= htmlspecialchars($item['loved_one_name'], ENT_QUOTES, 'UTF-8') ?></strong>
@@ -182,10 +208,15 @@ if ($isGroupView): ?>
 </html>
 <?php exit; endif;
 
-$stmt = $pdo->prepare('SELECT * FROM memorial_images WHERE memorial_id = ? ORDER BY id ASC LIMIT ' . (int) $planLimits['gallery_images']);
+$stmt = $pdo->prepare('SELECT * FROM memorial_images WHERE memorial_id = ? AND image_type = "profile" ORDER BY id ASC LIMIT 5');
 $stmt->execute([(int) $memorial['id']]);
-$images = $stmt->fetchAll();
-$coverImage = $images[0]['image_path'] ?? '';
+$profileImages = $stmt->fetchAll();
+
+$stmt = $pdo->prepare('SELECT * FROM memorial_images WHERE memorial_id = ? AND image_type = "gallery" ORDER BY id ASC LIMIT ' . (int) $planLimits['gallery_images']);
+$stmt->execute([(int) $memorial['id']]);
+$galleryImages = $stmt->fetchAll();
+
+$heroImages = $profileImages ?: $galleryImages;
 
 $stmt = $pdo->prepare('SELECT * FROM milestones WHERE memorial_id = ? ORDER BY sort_order ASC, id ASC LIMIT ' . (int) $planLimits['milestones']);
 $stmt->execute([(int) $memorial['id']]);
@@ -220,14 +251,14 @@ if ($milestones) {
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-23') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-27') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
       <section class="mobile-memorial-cover d-flex align-items-end">
-        <?php if ($images): ?>
+        <?php if ($heroImages): ?>
           <div class="profile-cover-slideshow" aria-hidden="true">
-            <?php foreach ($images as $imageIndex => $image): ?>
+            <?php foreach ($heroImages as $imageIndex => $image): ?>
               <img
                 class="<?= $imageIndex === 0 ? 'is-active' : '' ?>"
                 src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
@@ -256,7 +287,7 @@ if ($milestones) {
             <?php if ($planLimits['life_story'] && (!empty($memorial['autobiography_text']) || $milestones)): ?>
               <button class="btn btn-light btn-lg story-play-button" type="button">Play Life Story</button>
             <?php endif; ?>
-            <?php if ($images): ?>
+            <?php if ($galleryImages): ?>
               <a class="btn btn-outline-light btn-lg" href="#gallery">View Gallery</a>
             <?php endif; ?>
           </div>
@@ -284,13 +315,19 @@ if ($milestones) {
         </section>
       <?php endif; ?>
 
-      <?php if ($images): ?>
+      <?php if ($galleryImages): ?>
         <section class="mobile-memorial-section" id="gallery">
           <h2>Gallery</h2>
           <div class="preview-gallery row g-2">
-            <?php foreach ($images as $image): ?>
+            <?php foreach ($galleryImages as $image): ?>
               <div class="col-6">
-                <img class="img-fluid" src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Memorial photo">
+                <img
+                  class="img-fluid"
+                  src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
+                  alt="Memorial photo"
+                  data-lightbox-src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
+                  data-lightbox-alt="Memorial photo"
+                >
               </div>
             <?php endforeach; ?>
           </div>
@@ -318,7 +355,12 @@ if ($milestones) {
                 <footer class="preview-milestone-footer">
                   <div class="milestone-image-grid">
                     <?php foreach ($imagesForMilestone as $image): ?>
-                      <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Milestone photo">
+                      <img
+                        src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
+                        alt="Milestone photo"
+                        data-lightbox-src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
+                        data-lightbox-alt="Milestone photo"
+                      >
                     <?php endforeach; ?>
                   </div>
                 </footer>
@@ -347,6 +389,13 @@ if ($milestones) {
         </div>
       </section>
     </div>
+    <div class="image-lightbox" aria-hidden="true">
+      <div class="image-lightbox-backdrop"></div>
+      <section class="image-lightbox-panel" role="dialog" aria-modal="true" aria-label="Image preview">
+        <button class="image-lightbox-close" type="button" aria-label="Close image preview">&times;</button>
+        <img class="image-lightbox-img" src="" alt="">
+      </section>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
     <script>
       const playButton = document.querySelector('.story-play-button');
@@ -357,6 +406,9 @@ if ($milestones) {
       const modalTitle = document.querySelector('.story-modal-title');
       const modalText = document.querySelector('.story-modal-text');
       const modalClose = document.querySelector('.story-modal-close');
+      const imageLightbox = document.querySelector('.image-lightbox');
+      const imageLightboxImage = document.querySelector('.image-lightbox-img');
+      const imageLightboxClose = document.querySelector('.image-lightbox-close');
       let slideTimer = null;
       let profileCoverTimer = null;
       let activeModalImage = 0;
@@ -498,6 +550,36 @@ if ($milestones) {
 
       modalClose?.addEventListener('click', stopNarration);
       document.querySelector('.story-modal-backdrop')?.addEventListener('click', stopNarration);
+      function closeImageLightbox() {
+        imageLightbox?.classList.remove('is-open');
+        imageLightbox?.setAttribute('aria-hidden', 'true');
+        if (imageLightboxImage) {
+          imageLightboxImage.src = '';
+          imageLightboxImage.alt = '';
+        }
+      }
+
+      document.addEventListener('click', (event) => {
+        const image = event.target.closest('[data-lightbox-src]');
+
+        if (!image) return;
+
+        event.preventDefault();
+        if (imageLightboxImage) {
+          imageLightboxImage.src = image.dataset.lightboxSrc;
+          imageLightboxImage.alt = image.dataset.lightboxAlt || image.alt || 'Memorial image';
+        }
+        imageLightbox?.classList.add('is-open');
+        imageLightbox?.setAttribute('aria-hidden', 'false');
+      });
+
+      imageLightboxClose?.addEventListener('click', closeImageLightbox);
+      document.querySelector('.image-lightbox-backdrop')?.addEventListener('click', closeImageLightbox);
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          closeImageLightbox();
+        }
+      });
       window.addEventListener('beforeunload', stopNarration);
     </script>
   </body>

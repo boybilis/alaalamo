@@ -84,6 +84,7 @@ function qr_plan_limits(array $qrGroup): array
     $isPremium = qr_plan_type($qrGroup) === 'premium';
 
     return [
+        'profile_images' => 5,
         'gallery_images' => $isPremium ? 20 : 6,
         'milestones' => $isPremium ? 5 : 2,
         'milestone_images' => $isPremium ? 6 : 2,
@@ -115,7 +116,7 @@ function image_preview_html(array $image, string $type): string
 {
     $path = htmlspecialchars((string) $image['image_path'], ENT_QUOTES, 'UTF-8');
     $id = (int) $image['id'];
-    $label = $type === 'profile' ? 'Gallery image preview' : 'Milestone image preview';
+    $label = $type === 'profile' ? 'Profile image preview' : ($type === 'gallery' ? 'Gallery image preview' : 'Milestone image preview');
 
     return '<div class="image-preview-item">'
         . '<img src="' . $path . '" alt="' . $label . '">'
@@ -232,25 +233,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         [$imageType, $imageIdText] = array_pad(explode(':', $imageDelete, 2), 2, '');
         $imageId = (int) $imageIdText;
 
-        if ($imageType === 'profile' && $imageId > 0) {
+        if (($imageType === 'profile' || $imageType === 'gallery') && $imageId > 0) {
             $stmt = $pdo->prepare(
                 'SELECT mi.*
                  FROM memorial_images mi
                  INNER JOIN memorials me ON me.id = mi.memorial_id
-                 WHERE mi.id = ? AND me.user_id = ? AND me.qr_group_id = ?
+                 WHERE mi.id = ? AND mi.image_type = ? AND me.user_id = ? AND me.qr_group_id = ?
                  LIMIT 1'
             );
-            $stmt->execute([$imageId, (int) $user['id'], (int) $qrGroup['id']]);
+            $stmt->execute([$imageId, $imageType, (int) $user['id'], (int) $qrGroup['id']]);
             $image = $stmt->fetch();
 
             if ($image) {
                 $pdo->prepare('DELETE FROM memorial_images WHERE id = ?')->execute([$imageId]);
                 delete_uploaded_asset($image['image_path'] ?? null);
+                $deleteLabel = $imageType === 'profile' ? 'Profile image' : 'Gallery image';
+
                 if ($isAjax) {
-                    json_response(['ok' => true, 'message' => 'Gallery image deleted.']);
+                    json_response(['ok' => true, 'message' => $deleteLabel . ' deleted.']);
                 }
 
-                flash('success', 'Gallery image deleted.');
+                flash('success', $deleteLabel . ' deleted.');
                 redirect_to('/dashboard.php?memorial_id=' . (int) $image['memorial_id']);
             }
         }
@@ -545,17 +548,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!empty($_FILES['profile_images']['name'])) {
-            $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM memorial_images WHERE memorial_id = ?');
+            $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM memorial_images WHERE memorial_id = ? AND image_type = "profile"');
             $existingCountStmt->execute([$memorialId]);
             $existingCount = (int) $existingCountStmt->fetchColumn();
-            $remainingSlots = max(0, $planLimits['gallery_images'] - $existingCount);
+            $remainingSlots = max(0, $planLimits['profile_images'] - $existingCount);
             $profileUploadCount = min(count($_FILES['profile_images']['name']), $remainingSlots);
 
             for ($i = 0; $i < $profileUploadCount; $i++) {
                 $path = store_uploaded_image(uploaded_file_at($_FILES['profile_images'], $i), 'memorials/' . $memorialId . '/profile');
 
                 if ($path) {
-                    $pdo->prepare('INSERT INTO memorial_images (memorial_id, image_path) VALUES (?, ?)')
+                    $pdo->prepare('INSERT INTO memorial_images (memorial_id, image_type, image_path) VALUES (?, "profile", ?)')
+                        ->execute([$memorialId, $path]);
+                }
+            }
+        }
+
+        if (!empty($_FILES['gallery_images']['name'])) {
+            $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM memorial_images WHERE memorial_id = ? AND image_type = "gallery"');
+            $existingCountStmt->execute([$memorialId]);
+            $existingCount = (int) $existingCountStmt->fetchColumn();
+            $remainingSlots = max(0, $planLimits['gallery_images'] - $existingCount);
+            $galleryUploadCount = min(count($_FILES['gallery_images']['name']), $remainingSlots);
+
+            for ($i = 0; $i < $galleryUploadCount; $i++) {
+                $path = store_uploaded_image(uploaded_file_at($_FILES['gallery_images'], $i), 'memorials/' . $memorialId . '/gallery');
+
+                if ($path) {
+                    $pdo->prepare('INSERT INTO memorial_images (memorial_id, image_type, image_path) VALUES (?, "gallery", ?)')
                         ->execute([$memorialId, $path]);
                 }
             }
@@ -642,10 +662,15 @@ if (isset($_GET['new']) && count($memorials) < MAX_MEMORIALS_PER_QR) {
 $milestones = [];
 $milestoneImages = [];
 $profileImages = [];
+$galleryImages = [];
 if ($memorial) {
-    $stmt = $pdo->prepare('SELECT * FROM memorial_images WHERE memorial_id = ? ORDER BY id ASC');
+    $stmt = $pdo->prepare('SELECT * FROM memorial_images WHERE memorial_id = ? AND image_type = "profile" ORDER BY id ASC');
     $stmt->execute([(int) $memorial['id']]);
     $profileImages = $stmt->fetchAll();
+
+    $stmt = $pdo->prepare('SELECT * FROM memorial_images WHERE memorial_id = ? AND image_type = "gallery" ORDER BY id ASC');
+    $stmt->execute([(int) $memorial['id']]);
+    $galleryImages = $stmt->fetchAll();
 
     $stmt = $pdo->prepare('SELECT * FROM milestones WHERE memorial_id = ? ORDER BY sort_order ASC, id ASC');
     $stmt->execute([(int) $memorial['id']]);
@@ -673,7 +698,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-23') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-27') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
@@ -780,6 +805,23 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
               Short description
               <textarea name="short_description" rows="4" placeholder="A gentle introduction to who they were."><?= htmlspecialchars($memorial['short_description'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
             </label>
+            <label class="form-full">
+              Profile photos
+              <input type="file" name="profile_images[]" accept="image/jpeg,image/png,image/webp" multiple>
+              <span class="field-note"><?= count($profileImages) ?> of <?= $planLimits['profile_images'] ?> profile photos used. These photos power the hero slideshow.</span>
+            </label>
+            <div class="image-preview-list form-full">
+              <?php if ($profileImages): ?>
+                <?php foreach ($profileImages as $image): ?>
+                  <div class="image-preview-item">
+                    <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Profile image preview">
+                    <button class="image-delete-link" type="button" data-image-delete="profile:<?= (int) $image['id'] ?>">Delete</button>
+                  </div>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <p>No profile photos yet.</p>
+              <?php endif; ?>
+            </div>
             <div class="theme-picker form-full">
               <div>
                 <h3>Memorial color theme</h3>
@@ -868,21 +910,21 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
         <section class="form-section">
           <h2>Gallery</h2>
           <p>
-            Upload photos for the memorial gallery and hero slideshow.
+            Upload stacked photos for the memorial gallery.
             <?= $planType === 'premium' ? 'Premium supports up to 20 gallery images.' : 'Regular supports up to 6 gallery images.' ?>
           </p>
           <div class="form-grid">
             <label class="form-full">
               Gallery images
-              <input type="file" name="profile_images[]" accept="image/jpeg,image/png,image/webp" multiple>
-              <span class="field-note"><?= count($profileImages) ?> of <?= $planLimits['gallery_images'] ?> gallery images used.</span>
+              <input type="file" name="gallery_images[]" accept="image/jpeg,image/png,image/webp" multiple>
+              <span class="field-note"><?= count($galleryImages) ?> of <?= $planLimits['gallery_images'] ?> gallery images used.</span>
             </label>
             <div class="image-preview-list form-full">
-              <?php if ($profileImages): ?>
-                <?php foreach ($profileImages as $image): ?>
+              <?php if ($galleryImages): ?>
+                <?php foreach ($galleryImages as $image): ?>
                   <div class="image-preview-item">
                     <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Gallery image preview">
-                    <button class="image-delete-link" type="button" data-image-delete="profile:<?= (int) $image['id'] ?>">Delete</button>
+                    <button class="image-delete-link" type="button" data-image-delete="gallery:<?= (int) $image['id'] ?>">Delete</button>
                   </div>
                 <?php endforeach; ?>
               <?php else: ?>

@@ -1218,6 +1218,30 @@ h2 {
   color: var(--memorial-primary-text);
 }
 
+.mobile-memorial-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-bottom: 18px;
+  color: var(--memorial-primary-text);
+  font-weight: 800;
+}
+
+.mobile-memorial-brand .brand-mark {
+  width: 34px;
+  height: 34px;
+  background: var(--memorial-secondary);
+  color: var(--memorial-secondary-text);
+  font-size: 18px;
+}
+
+.mobile-memorial-brand:hover {
+  color: var(--memorial-primary-text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .mobile-memorial-header img {
   width: 132px;
   height: 132px;
@@ -1442,7 +1466,11 @@ h2 {
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
+  border: 4px solid #f4f4f4;
   border-radius: 8px;
+  outline: 1px solid rgba(104, 113, 122, 0.42);
+  box-shadow: 0 8px 20px rgba(24, 41, 54, 0.12);
+  cursor: zoom-in;
 }
 
 .memorial-card-list {
@@ -1466,7 +1494,11 @@ h2 {
   width: 76px;
   height: 76px;
   object-fit: cover;
+  border: 3px solid #f4f4f4;
   border-radius: 8px;
+  outline: 1px solid rgba(104, 113, 122, 0.42);
+  box-shadow: 0 6px 14px rgba(24, 41, 54, 0.1);
+  cursor: zoom-in;
 }
 
 .memorial-select-card span {
@@ -1529,6 +1561,9 @@ h2 {
 
 .preview-milestone h3 {
   margin: 6px 0 0;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
 }
 
 .milestone-image-grid {
@@ -1541,7 +1576,66 @@ h2 {
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
+  border: 4px solid #f4f4f4;
   border-radius: 8px;
+  outline: 1px solid rgba(104, 113, 122, 0.42);
+  box-shadow: 0 8px 20px rgba(24, 41, 54, 0.12);
+  cursor: zoom-in;
+}
+
+.image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: none;
+}
+
+.image-lightbox.is-open {
+  display: block;
+}
+
+.image-lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 20, 33, 0.88);
+}
+
+.image-lightbox-panel {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(430px, 100%);
+  height: 100%;
+  margin: 0 auto;
+  padding: 58px 14px 22px;
+}
+
+.image-lightbox-close {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--accent-dark);
+  cursor: pointer;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.image-lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  border: 6px solid #f4f4f4;
+  border-radius: 8px;
+  outline: 1px solid rgba(140, 148, 156, 0.7);
+  object-fit: contain;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.38);
 }
 
 .life-story-player {
