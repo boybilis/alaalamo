@@ -1209,8 +1209,10 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
       <aside class="qr-panel">
         <h2>Family QR preview</h2>
         <?php if ($qrUrl): ?>
-          <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
-          <a class="button-primary" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Open Preview</a>
+          <a class="qr-preview-link" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">
+            <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
+          </a>
+          <a class="button-primary" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Preview</a>
           <p><?= count($memorials) ?> of <?= MAX_MEMORIALS_PER_QR ?> memorials in this QR. Extra <?= htmlspecialchars($planType, ENT_QUOTES, 'UTF-8') ?> memorials are PHP <?= number_format($additionalMemorialPrice) ?> each.</p>
           <?php if ($additionalCost > 0): ?>
             <p>Additional memorial total: PHP <?= number_format($additionalCost) ?> per year.</p>

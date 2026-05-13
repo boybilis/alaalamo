@@ -160,6 +160,7 @@ CREATE TABLE IF NOT EXISTS memorial_community_photos (
   approved_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX memorial_community_photos_memorial_id_idx (memorial_id, status),
+  UNIQUE KEY memorial_community_photos_email_unique (memorial_id, sender_email),
   CONSTRAINT memorial_community_photos_memorial_id_fk
     FOREIGN KEY (memorial_id) REFERENCES memorials(id)
     ON DELETE CASCADE

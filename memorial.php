@@ -383,12 +383,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isGroupView) {
             redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#shared-photos');
         }
 
-        if (empty($_FILES['shared_photos']['name']) || !is_array($_FILES['shared_photos']['name'])) {
-            flash('error', 'Please choose up to 2 photos to share.');
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM memorial_community_photos WHERE memorial_id = ? AND sender_email = ?');
+        $stmt->execute([(int) $memorial['id'], $senderEmail]);
+
+        if ((int) $stmt->fetchColumn() > 0) {
+            flash('error', 'This email has already shared a photo for this memorial.');
             redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#shared-photos');
         }
 
-        $imageCount = min(count($_FILES['shared_photos']['name']), 2);
+        if (empty($_FILES['shared_photos']['name']) || !is_array($_FILES['shared_photos']['name'])) {
+            flash('error', 'Please choose one photo to share.');
+            redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#shared-photos');
+        }
+
+        $imageCount = min(count($_FILES['shared_photos']['name']), 1);
 
         for ($i = 0; $i < $imageCount; $i++) {
             $path = store_uploaded_image(
@@ -466,7 +474,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isGroupView) {
         }
 
         $paths = json_decode((string) $pendingOtp['temp_image_paths'], true);
-        $paths = is_array($paths) ? array_slice($paths, 0, 2) : [];
+        $paths = is_array($paths) ? array_slice($paths, 0, 1) : [];
+
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM memorial_community_photos WHERE memorial_id = ? AND sender_email = ?');
+        $stmt->execute([(int) $memorial['id'], (string) $pendingOtp['sender_email']]);
+
+        if ((int) $stmt->fetchColumn() > 0) {
+            foreach ($paths as $path) {
+                safe_delete_temp_upload($path);
+            }
+
+            $pdo->prepare('UPDATE memorial_photo_otps SET consumed_at = NOW() WHERE id = ?')
+                ->execute([(int) $pendingOtp['id']]);
+
+            flash('error', 'This email has already shared a photo for this memorial.');
+            redirect_to('/memorial.php?t=' . urlencode($token) . '&m=' . (int) $memorial['id'] . '#shared-photos');
+        }
 
         foreach ($paths as $path) {
             $pdo->prepare(
@@ -935,9 +958,9 @@ $messageFlash = get_flash();
                 </label>
                 <label class="mt-3">
                   Photos
-                  <input class="form-control" type="file" name="shared_photos[]" accept="image/jpeg,image/png,image/webp" multiple required>
+                  <input class="form-control" type="file" name="shared_photos[]" accept="image/jpeg,image/png,image/webp" required>
                 </label>
-                <p class="field-note mt-2">Maximum 2 photos per email submission. We will send a 1-minute OTP before submitting. Photos appear only after family approval.</p>
+                <p class="field-note mt-2">One photo per email for this memorial, so more people can share. We will send a 1-minute OTP before submitting. Photos appear only after family approval.</p>
                 <button class="btn btn-primary w-100 mt-3" type="submit">Send OTP</button>
               </form>
             <?php endif; ?>
