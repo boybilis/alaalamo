@@ -114,7 +114,7 @@ $registrationFlash = get_flash();
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
     >
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-40') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-41') ?>">
   </head>
   <body>
     <header class="site-header" aria-label="Main navigation">
@@ -122,7 +122,10 @@ $registrationFlash = get_flash();
         <span class="brand-mark" aria-hidden="true">A</span>
         <span class="brand-highlight">AlaalaMo</span>
       </a>
-      <nav class="nav-links" aria-label="Primary">
+      <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="primary-navigation" aria-expanded="false">
+        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+      </button>
+      <nav class="nav-links" id="primary-navigation" aria-label="Primary">
         <?php foreach ($navItems as $item): ?>
           <a href="<?= htmlspecialchars($item['href'], ENT_QUOTES, 'UTF-8') ?>">
             <?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?>
@@ -335,6 +338,24 @@ $registrationFlash = get_flash();
       </div>
       <p class="footer-note">Â© <?= date('Y') ?> AlaalaMo. Memories made easier to revisit.</p>
     </footer>
+    <script>
+      const menuToggle = document.querySelector('.menu-toggle');
+      const navLinks = document.querySelector('.nav-links');
+
+      menuToggle?.addEventListener('click', () => {
+        const isOpen = navLinks?.classList.toggle('is-open') || false;
+        menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        menuToggle.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
+      });
+
+      navLinks?.querySelectorAll('a').forEach((link) => {
+        link.addEventListener('click', () => {
+          navLinks.classList.remove('is-open');
+          menuToggle?.setAttribute('aria-expanded', 'false');
+          menuToggle?.setAttribute('aria-label', 'Open menu');
+        });
+      });
+    </script>
   </body>
 </html>
 
