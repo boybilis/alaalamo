@@ -1189,6 +1189,11 @@ h2 {
 }
 
 .mobile-memorial h1,
+.memorial-select-card strong {
+  font-family: "Cinzel", "Inter", Arial, Helvetica, sans-serif;
+  letter-spacing: 0.04em;
+}
+
 .mobile-memorial h2,
 .mobile-memorial h3,
 .mobile-memorial blockquote,
@@ -1252,13 +1257,38 @@ h2 {
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  transform: scale(1.035);
-  transition: opacity 1200ms ease, transform 5200ms ease;
+  transform: scale(1.08) translate3d(-1.5%, -1%, 0);
+  transition: opacity 1800ms ease-in-out;
+  animation: none;
 }
 
 .profile-cover-slideshow img.is-active {
   opacity: 1;
-  transform: scale(1);
+  animation: heroKenBurns 8200ms ease-in-out forwards;
+}
+
+.profile-cover-slideshow img:nth-child(even).is-active {
+  animation-name: heroKenBurnsReverse;
+}
+
+@keyframes heroKenBurns {
+  from {
+    transform: scale(1.04) translate3d(-1.5%, -1%, 0);
+  }
+
+  to {
+    transform: scale(1.16) translate3d(2%, 1.4%, 0);
+  }
+}
+
+@keyframes heroKenBurnsReverse {
+  from {
+    transform: scale(1.16) translate3d(2%, 1.4%, 0);
+  }
+
+  to {
+    transform: scale(1.04) translate3d(-1.5%, -1%, 0);
+  }
 }
 
 .mobile-memorial-cover-content {
@@ -1271,16 +1301,45 @@ h2 {
 
 .mobile-memorial-cover h1 {
   color: var(--memorial-primary-text);
-  font-size: 44px;
+  font-size: clamp(40px, 12vw, 54px);
+  font-weight: 700;
+  line-height: 1.02;
+  text-transform: uppercase;
   text-shadow: 0 2px 22px rgba(0, 0, 0, 0.32);
 }
 
-.memorial-dates,
-.memorial-resting-place {
+.memorial-dates {
   margin: 0;
   color: var(--memorial-primary-text);
-  opacity: 0.86;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.memorial-date-rule {
+  width: 100%;
+  height: 2px;
+  margin: 0;
+  border: 0;
+  background: var(--memorial-primary-text);
+  opacity: 0.9;
+}
+
+.memorial-resting-place {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--memorial-primary-text);
+  font-size: 14px;
   font-weight: 700;
+  line-height: 1.45;
+}
+
+.memorial-resting-place i {
+  flex: 0 0 auto;
+  margin-top: 0.18em;
+  color: var(--memorial-secondary);
 }
 
 .mobile-memorial-cover blockquote {

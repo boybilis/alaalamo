@@ -45,6 +45,29 @@ function memorial_theme_style(array $memorial): string
     return htmlspecialchars(implode('; ', $style) . ';', ENT_QUOTES, 'UTF-8');
 }
 
+function memorial_display_date(?string $date): string
+{
+    if (!$date) {
+        return '';
+    }
+
+    $timestamp = strtotime($date);
+
+    return $timestamp ? date('F d, Y', $timestamp) : '';
+}
+
+function memorial_date_range(array $memorial): string
+{
+    $birthDate = memorial_display_date($memorial['birth_date'] ?? null);
+    $deathDate = memorial_display_date($memorial['death_date'] ?? null);
+
+    if ($birthDate !== '' && $deathDate !== '') {
+        return $birthDate . ' - ' . $deathDate;
+    }
+
+    return $birthDate !== '' ? $birthDate : $deathDate;
+}
+
 $pdo = db();
 $stmt = $pdo->prepare('SELECT * FROM qr_groups WHERE public_token = ? LIMIT 1');
 $stmt->execute([$token]);
@@ -98,7 +121,10 @@ if ($isGroupView): ?>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
     <title>Family Memorials | AlaalaMo</title>
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-8') ?>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-10') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial">
@@ -122,10 +148,7 @@ if ($isGroupView): ?>
               <?php endif; ?>
               <span>
                 <strong><?= htmlspecialchars($item['loved_one_name'], ENT_QUOTES, 'UTF-8') ?></strong>
-                <small>
-                  <?= htmlspecialchars($item['birth_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>
-                  <?= !empty($item['death_date']) ? ' - ' . htmlspecialchars($item['death_date'], ENT_QUOTES, 'UTF-8') : '' ?>
-                </small>
+                <small><?= htmlspecialchars(memorial_date_range($item), ENT_QUOTES, 'UTF-8') ?></small>
               </span>
             </a>
           <?php endforeach; ?>
@@ -171,8 +194,12 @@ if ($milestones) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
     <title><?= htmlspecialchars($memorial['loved_one_name'], ENT_QUOTES, 'UTF-8') ?> | AlaalaMo Memorial</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-8') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-10') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -192,14 +219,17 @@ if ($milestones) {
           <p class="section-eyebrow">In loving memory</p>
           <h1><?= htmlspecialchars($memorial['loved_one_name'], ENT_QUOTES, 'UTF-8') ?></h1>
           <p class="memorial-dates">
-            <?= htmlspecialchars($memorial['birth_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>
-            <?= !empty($memorial['death_date']) ? ' - ' . htmlspecialchars($memorial['death_date'], ENT_QUOTES, 'UTF-8') : '' ?>
+            <?= htmlspecialchars(memorial_date_range($memorial), ENT_QUOTES, 'UTF-8') ?>
           </p>
+          <hr class="memorial-date-rule">
           <?php if (!empty($memorial['memorial_quote'])): ?>
             <blockquote><?= nl2br(htmlspecialchars($memorial['memorial_quote'], ENT_QUOTES, 'UTF-8')) ?></blockquote>
           <?php endif; ?>
           <?php if (!empty($memorial['resting_place'])): ?>
-            <p class="memorial-resting-place"><?= htmlspecialchars($memorial['resting_place'], ENT_QUOTES, 'UTF-8') ?></p>
+            <p class="memorial-resting-place">
+              <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+              <span><?= htmlspecialchars($memorial['resting_place'], ENT_QUOTES, 'UTF-8') ?></span>
+            </p>
           <?php endif; ?>
           <div class="memorial-hero-actions d-grid gap-2 mt-3">
             <?php if (!empty($memorial['autobiography_text']) || $milestones): ?>
@@ -306,7 +336,7 @@ if ($milestones) {
           profileCoverImages[profileIndex].classList.remove('is-active');
           profileIndex = (profileIndex + 1) % profileCoverImages.length;
           profileCoverImages[profileIndex].classList.add('is-active');
-        }, 5200);
+        }, 8200);
       }
 
       function stopNarration() {

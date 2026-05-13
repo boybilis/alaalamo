@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS memorials (
   birth_date DATE NULL,
   death_date DATE NULL,
   resting_place VARCHAR(255) NULL,
+  resting_lat DECIMAL(10, 7) NULL,
+  resting_lng DECIMAL(10, 7) NULL,
   memorial_quote TEXT NULL,
   short_description TEXT NULL,
   theme_primary CHAR(7) NOT NULL DEFAULT '#214c63',
