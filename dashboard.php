@@ -41,6 +41,54 @@ function nested_uploaded_file_at(array $files, int $groupIndex, int $fileIndex):
     ];
 }
 
+function delete_uploaded_asset(?string $relativePath): void
+{
+    $path = str_replace('\\', '/', ltrim((string) $relativePath, '/'));
+
+    if ($path === '' || !str_starts_with($path, 'uploads/') || str_contains($path, '..')) {
+        return;
+    }
+
+    $uploadsRoot = realpath(__DIR__ . '/uploads');
+    $target = realpath(__DIR__ . '/' . $path);
+
+    if (!$uploadsRoot || !$target) {
+        return;
+    }
+
+    $uploadsRoot = rtrim($uploadsRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+
+    if (str_starts_with($target, $uploadsRoot) && is_file($target)) {
+        unlink($target);
+    }
+}
+
+function is_ajax_request(): bool
+{
+    return ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest'
+        || ($_POST['ajax'] ?? '') === '1';
+}
+
+function json_response(array $payload, int $statusCode = 200): never
+{
+    http_response_code($statusCode);
+    header('Content-Type: application/json');
+    echo json_encode($payload);
+    exit;
+}
+
+function image_preview_html(array $image, string $type): string
+{
+    $path = htmlspecialchars((string) $image['image_path'], ENT_QUOTES, 'UTF-8');
+    $id = (int) $image['id'];
+    $label = $type === 'profile' ? 'Profile image preview' : 'Milestone image preview';
+
+    return '<div class="image-preview-item">'
+        . '<img src="' . $path . '" alt="' . $label . '">'
+        . '<button class="image-delete-link" type="button" data-image-delete="' . $type . ':' . $id . '">Delete</button>'
+        . '</div>';
+}
+
 function extract_ai_story_payload(string $text): ?array
 {
     $clean = trim($text);
@@ -65,6 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $formAction = clean_input($_POST['form_action'] ?? 'save_memorial');
     $memorialIdInput = (int) ($_POST['memorial_id'] ?? 0);
     $qrGroup = ensure_qr_group((int) $user['id']);
+    $isAjax = is_ajax_request();
 
     if ($formAction === 'generate_ai_story') {
         if (!openai_is_configured()) {
@@ -136,6 +185,244 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         flash('success', 'Premium AI autobiography and ' . $savedNarrations . ' milestone narration text entries were generated and saved.');
         redirect_to('/dashboard.php?memorial_id=' . (int) $memorialForAi['id']);
+    }
+
+    if ($formAction === 'delete_image') {
+        $imageDelete = clean_input($_POST['image_delete'] ?? '');
+        [$imageType, $imageIdText] = array_pad(explode(':', $imageDelete, 2), 2, '');
+        $imageId = (int) $imageIdText;
+
+        if ($imageType === 'profile' && $imageId > 0) {
+            $stmt = $pdo->prepare(
+                'SELECT mi.*
+                 FROM memorial_images mi
+                 INNER JOIN memorials me ON me.id = mi.memorial_id
+                 WHERE mi.id = ? AND me.user_id = ? AND me.qr_group_id = ?
+                 LIMIT 1'
+            );
+            $stmt->execute([$imageId, (int) $user['id'], (int) $qrGroup['id']]);
+            $image = $stmt->fetch();
+
+            if ($image) {
+                $pdo->prepare('DELETE FROM memorial_images WHERE id = ?')->execute([$imageId]);
+                delete_uploaded_asset($image['image_path'] ?? null);
+                if ($isAjax) {
+                    json_response(['ok' => true, 'message' => 'Profile image deleted.']);
+                }
+
+                flash('success', 'Profile image deleted.');
+                redirect_to('/dashboard.php?memorial_id=' . (int) $image['memorial_id']);
+            }
+        }
+
+        if ($imageType === 'milestone' && $imageId > 0) {
+            $stmt = $pdo->prepare(
+                'SELECT mii.*, m.memorial_id
+                 FROM milestone_images mii
+                 INNER JOIN milestones m ON m.id = mii.milestone_id
+                 INNER JOIN memorials me ON me.id = m.memorial_id
+                 WHERE mii.id = ? AND me.user_id = ? AND me.qr_group_id = ?
+                 LIMIT 1'
+            );
+            $stmt->execute([$imageId, (int) $user['id'], (int) $qrGroup['id']]);
+            $image = $stmt->fetch();
+
+            if ($image) {
+                $pdo->prepare('DELETE FROM milestone_images WHERE id = ?')->execute([$imageId]);
+                delete_uploaded_asset($image['image_path'] ?? null);
+                if ($isAjax) {
+                    json_response(['ok' => true, 'message' => 'Milestone image deleted.']);
+                }
+
+                flash('success', 'Milestone image deleted.');
+                redirect_to('/dashboard.php?memorial_id=' . (int) $image['memorial_id']);
+            }
+        }
+
+        if ($isAjax) {
+            json_response(['ok' => false, 'message' => 'The image could not be deleted.'], 422);
+        }
+
+        flash('error', 'The image could not be deleted.');
+        redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
+    }
+
+    if ($formAction === 'save_milestone') {
+        $milestoneIdInput = (int) ($_POST['milestone_id'] ?? 0);
+        $sortOrder = max(0, min(MAX_MILESTONES - 1, (int) ($_POST['sort_order'] ?? 0)));
+        $title = clean_input($_POST['title'] ?? '');
+        $milestoneDate = clean_input($_POST['milestone_date'] ?? '');
+        $description = clean_input($_POST['description'] ?? '');
+
+        if (!$isAjax) {
+            redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
+        }
+
+        if ($memorialIdInput <= 0) {
+            json_response(['ok' => false, 'message' => 'Save the memorial profile first before saving milestones.'], 422);
+        }
+
+        if ($title === '') {
+            json_response(['ok' => false, 'message' => 'Milestone title is required.'], 422);
+        }
+
+        $stmt = $pdo->prepare('SELECT * FROM memorials WHERE id = ? AND user_id = ? AND qr_group_id = ? LIMIT 1');
+        $stmt->execute([$memorialIdInput, (int) $user['id'], (int) $qrGroup['id']]);
+        $targetMemorial = $stmt->fetch();
+
+        if (!$targetMemorial) {
+            json_response(['ok' => false, 'message' => 'Memorial not found.'], 404);
+        }
+
+        if ($milestoneIdInput > 0) {
+            $stmt = $pdo->prepare('SELECT * FROM milestones WHERE id = ? AND memorial_id = ? LIMIT 1');
+            $stmt->execute([$milestoneIdInput, $memorialIdInput]);
+
+            if (!$stmt->fetch()) {
+                json_response(['ok' => false, 'message' => 'Milestone not found.'], 404);
+            }
+
+            $pdo->prepare(
+                'UPDATE milestones
+                 SET title = ?, milestone_date = ?, description = ?, sort_order = ?
+                 WHERE id = ? AND memorial_id = ?'
+            )->execute([$title, $milestoneDate, $description, $sortOrder, $milestoneIdInput, $memorialIdInput]);
+            $savedMilestoneId = $milestoneIdInput;
+        } else {
+            $countStmt = $pdo->prepare('SELECT COUNT(*) FROM milestones WHERE memorial_id = ?');
+            $countStmt->execute([$memorialIdInput]);
+
+            if ((int) $countStmt->fetchColumn() >= MAX_MILESTONES) {
+                json_response(['ok' => false, 'message' => 'Maximum milestones reached.'], 422);
+            }
+
+            $pdo->prepare(
+                'INSERT INTO milestones (memorial_id, title, milestone_date, description, sort_order)
+                 VALUES (?, ?, ?, ?, ?)'
+            )->execute([$memorialIdInput, $title, $milestoneDate, $description, $sortOrder]);
+            $savedMilestoneId = (int) $pdo->lastInsertId();
+        }
+
+        json_response([
+            'ok' => true,
+            'message' => 'Milestone saved.',
+            'milestone_id' => $savedMilestoneId,
+        ]);
+    }
+
+    if ($formAction === 'delete_milestone') {
+        $milestoneIdInput = (int) ($_POST['milestone_id'] ?? 0);
+
+        if (!$isAjax) {
+            redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
+        }
+
+        $stmt = $pdo->prepare(
+            'SELECT m.*
+             FROM milestones m
+             INNER JOIN memorials me ON me.id = m.memorial_id
+             WHERE m.id = ? AND me.user_id = ? AND me.qr_group_id = ?
+             LIMIT 1'
+        );
+        $stmt->execute([$milestoneIdInput, (int) $user['id'], (int) $qrGroup['id']]);
+        $targetMilestone = $stmt->fetch();
+
+        if (!$targetMilestone) {
+            json_response(['ok' => false, 'message' => 'Milestone not found.'], 404);
+        }
+
+        $stmt = $pdo->prepare('SELECT * FROM milestone_images WHERE milestone_id = ?');
+        $stmt->execute([(int) $targetMilestone['id']]);
+        $imagesToDelete = $stmt->fetchAll();
+
+        $pdo->beginTransaction();
+
+        try {
+            $pdo->prepare('DELETE FROM milestone_images WHERE milestone_id = ?')->execute([(int) $targetMilestone['id']]);
+            $pdo->prepare('DELETE FROM milestones WHERE id = ?')->execute([(int) $targetMilestone['id']]);
+            $pdo->commit();
+        } catch (Throwable $exception) {
+            $pdo->rollBack();
+            error_log('Milestone delete failed: ' . $exception->getMessage());
+            json_response(['ok' => false, 'message' => 'Milestone could not be deleted.'], 500);
+        }
+
+        foreach ($imagesToDelete as $imageToDelete) {
+            delete_uploaded_asset($imageToDelete['image_path'] ?? null);
+        }
+
+        json_response(['ok' => true, 'message' => 'Milestone deleted.']);
+    }
+
+    if ($formAction === 'upload_milestone_images') {
+        $milestoneIdInput = (int) ($_POST['milestone_id'] ?? 0);
+
+        $stmt = $pdo->prepare(
+            'SELECT m.*
+             FROM milestones m
+             INNER JOIN memorials me ON me.id = m.memorial_id
+             WHERE m.id = ? AND me.user_id = ? AND me.qr_group_id = ?
+             LIMIT 1'
+        );
+        $stmt->execute([$milestoneIdInput, (int) $user['id'], (int) $qrGroup['id']]);
+        $targetMilestone = $stmt->fetch();
+
+        if (!$targetMilestone) {
+            if ($isAjax) {
+                json_response(['ok' => false, 'message' => 'Please save the milestone before uploading images.'], 422);
+            }
+
+            flash('error', 'Please save the milestone before uploading images.');
+            redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
+        }
+
+        $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM milestone_images WHERE milestone_id = ?');
+        $existingCountStmt->execute([(int) $targetMilestone['id']]);
+        $existingCount = (int) $existingCountStmt->fetchColumn();
+        $remainingSlots = max(0, MAX_MILESTONE_IMAGES - $existingCount);
+
+        if ($remainingSlots === 0) {
+            if ($isAjax) {
+                json_response(['ok' => false, 'message' => 'This milestone already has the maximum number of images.'], 422);
+            }
+
+            flash('error', 'This milestone already has the maximum number of images.');
+            redirect_to('/dashboard.php?memorial_id=' . (int) $targetMilestone['memorial_id']);
+        }
+
+        $uploaded = 0;
+        $uploadedHtml = [];
+        if (!empty($_FILES['milestone_images']['name'])) {
+            $imageCount = min(count($_FILES['milestone_images']['name']), $remainingSlots);
+
+            for ($i = 0; $i < $imageCount; $i++) {
+                $path = store_uploaded_image(
+                    uploaded_file_at($_FILES['milestone_images'], $i),
+                    'memorials/' . (int) $targetMilestone['memorial_id'] . '/milestones/' . (int) $targetMilestone['id']
+                );
+
+                if ($path) {
+                    $pdo->prepare('INSERT INTO milestone_images (milestone_id, image_path) VALUES (?, ?)')
+                        ->execute([(int) $targetMilestone['id'], $path]);
+                    $uploadedHtml[] = image_preview_html([
+                        'id' => (int) $pdo->lastInsertId(),
+                        'image_path' => $path,
+                    ], 'milestone');
+                    $uploaded++;
+                }
+            }
+        }
+
+        if ($isAjax) {
+            json_response([
+                'ok' => $uploaded > 0,
+                'message' => $uploaded > 0 ? 'Milestone images uploaded.' : 'No valid milestone images were uploaded.',
+                'html' => implode('', $uploadedHtml),
+            ], $uploaded > 0 ? 200 : 422);
+        }
+
+        flash($uploaded > 0 ? 'success' : 'error', $uploaded > 0 ? 'Milestone images uploaded.' : 'No valid milestone images were uploaded.');
+        redirect_to('/dashboard.php?memorial_id=' . (int) $targetMilestone['memorial_id']);
     }
 
     $lovedOneName = clean_input($_POST['loved_one_name'] ?? '');
@@ -218,52 +505,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        $pdo->prepare('DELETE FROM milestones WHERE memorial_id = ?')->execute([$memorialId]);
-
+        $milestoneIds = $_POST['milestone_id'] ?? [];
         $titles = $_POST['milestone_title'] ?? [];
         $dates = $_POST['milestone_date'] ?? [];
         $descriptions = $_POST['milestone_description'] ?? [];
         $milestoneCount = min(count($titles), MAX_MILESTONES);
 
         for ($i = 0; $i < $milestoneCount; $i++) {
+            $milestoneIdInput = (int) ($milestoneIds[$i] ?? 0);
             $title = clean_input($titles[$i] ?? '');
 
             if ($title === '') {
                 continue;
             }
 
-            $pdo->prepare(
-                'INSERT INTO milestones (memorial_id, title, milestone_date, description, sort_order)
-                 VALUES (?, ?, ?, ?, ?)'
-            )->execute([
-                $memorialId,
-                $title,
-                clean_input($dates[$i] ?? ''),
-                clean_input($descriptions[$i] ?? ''),
-                $i,
-            ]);
-
-            $milestoneId = (int) $pdo->lastInsertId();
-
-            if (!empty($_FILES['milestone_images']['name'][$i])) {
-                $imageCount = min(count($_FILES['milestone_images']['name'][$i]), MAX_MILESTONE_IMAGES);
-
-                for ($j = 0; $j < $imageCount; $j++) {
-                    $path = store_uploaded_image(
-                        nested_uploaded_file_at($_FILES['milestone_images'], $i, $j),
-                        'memorials/' . $memorialId . '/milestones/' . $milestoneId
-                    );
-
-                    if ($path) {
-                        $pdo->prepare('INSERT INTO milestone_images (milestone_id, image_path) VALUES (?, ?)')
-                            ->execute([$milestoneId, $path]);
-                    }
-                }
+            if ($milestoneIdInput > 0) {
+                $pdo->prepare(
+                    'UPDATE milestones
+                     SET title = ?, milestone_date = ?, description = ?, sort_order = ?
+                     WHERE id = ? AND memorial_id = ?'
+                )->execute([
+                    $title,
+                    clean_input($dates[$i] ?? ''),
+                    clean_input($descriptions[$i] ?? ''),
+                    $i,
+                    $milestoneIdInput,
+                    $memorialId,
+                ]);
+            } else {
+                $pdo->prepare(
+                    'INSERT INTO milestones (memorial_id, title, milestone_date, description, sort_order)
+                     VALUES (?, ?, ?, ?, ?)'
+                )->execute([
+                    $memorialId,
+                    $title,
+                    clean_input($dates[$i] ?? ''),
+                    clean_input($descriptions[$i] ?? ''),
+                    $i,
+                ]);
             }
         }
 
         $pdo->commit();
-        flash('success', 'Memorial details saved. Your QR preview is ready.');
+        flash('success', 'Memorial details saved. Your QR preview link remains the same.');
         redirect_to('/dashboard.php?memorial_id=' . $memorialId);
     } catch (Throwable $exception) {
         $pdo->rollBack();
@@ -329,7 +613,7 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-1') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-4') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
@@ -436,7 +720,10 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
             <div class="image-preview-list form-full">
               <?php if ($profileImages): ?>
                 <?php foreach ($profileImages as $image): ?>
-                  <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Profile image preview">
+                  <div class="image-preview-item">
+                    <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Profile image preview">
+                    <button class="image-delete-link" type="button" data-image-delete="profile:<?= (int) $image['id'] ?>">Delete</button>
+                  </div>
                 <?php endforeach; ?>
               <?php else: ?>
                 <p>No profile images yet.</p>
@@ -452,41 +739,57 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
           <?php for ($i = 0; $i < MAX_MILESTONES; $i++): ?>
             <?php $milestone = $milestones[$i] ?? null; ?>
             <?php $imagesForMilestone = $milestone ? ($milestoneImages[(int) $milestone['id']] ?? []) : []; ?>
-            <div class="milestone-box">
+            <div class="milestone-box" data-milestone-box>
               <h3>Milestone <?= $i + 1 ?></h3>
               <div class="form-grid">
+                <input type="hidden" name="milestone_id[]" data-milestone-id value="<?= (int) ($milestone['id'] ?? 0) ?>">
+                <input type="hidden" data-sort-order value="<?= $i ?>">
                 <label>
                   Title
-                  <input type="text" name="milestone_title[]" value="<?= htmlspecialchars($milestone['title'] ?? '', ENT_QUOTES, 'UTF-8') ?>" placeholder="Example: Built a family, Started a business">
+                  <input type="text" name="milestone_title[]" data-milestone-title value="<?= htmlspecialchars($milestone['title'] ?? '', ENT_QUOTES, 'UTF-8') ?>" placeholder="Example: Built a family, Started a business">
                 </label>
                 <label>
                   Date or period
-                  <input type="text" name="milestone_date[]" value="<?= htmlspecialchars($milestone['milestone_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>" placeholder="Example: 1975, Childhood, 1990s">
+                  <input type="text" name="milestone_date[]" data-milestone-date value="<?= htmlspecialchars($milestone['milestone_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>" placeholder="Example: 1975, Childhood, 1990s">
                 </label>
                 <label class="form-full">
                   Description
-                  <textarea name="milestone_description[]" rows="3" placeholder="What happened in this chapter of their life?"><?= htmlspecialchars($milestone['description'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                  <textarea name="milestone_description[]" data-milestone-description rows="3" placeholder="What happened in this chapter of their life?"><?= htmlspecialchars($milestone['description'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
                 </label>
                 <label class="form-full">
                   Milestone images
-                  <input type="file" name="milestone_images[<?= $i ?>][]" accept="image/jpeg,image/png,image/webp" multiple>
-                  <span class="field-note">Maximum <?= MAX_MILESTONE_IMAGES ?> images for this milestone.</span>
+                  <?php if ($milestone): ?>
+                    <input type="file" name="milestone_images[]" data-milestone-images accept="image/jpeg,image/png,image/webp" multiple>
+                    <span class="field-note">Maximum <?= MAX_MILESTONE_IMAGES ?> images for this milestone. This upload will not change the QR code.</span>
+                  <?php else: ?>
+                    <input type="file" name="milestone_images[]" data-milestone-images accept="image/jpeg,image/png,image/webp" multiple disabled>
+                    <span class="field-note">Save this milestone first, then upload images for it.</span>
+                  <?php endif; ?>
                 </label>
-                <div class="image-preview-list form-full">
+                <div class="image-preview-list form-full" data-milestone-preview>
                   <?php if ($imagesForMilestone): ?>
                     <?php foreach ($imagesForMilestone as $image): ?>
-                      <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Milestone image preview">
+                      <div class="image-preview-item">
+                        <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Milestone image preview">
+                        <button class="image-delete-link" type="button" data-image-delete="milestone:<?= (int) $image['id'] ?>">Delete</button>
+                      </div>
                     <?php endforeach; ?>
                   <?php else: ?>
                     <p>No milestone images yet.</p>
                   <?php endif; ?>
+                </div>
+                <div class="milestone-ajax-actions form-full">
+                  <button class="button-secondary milestone-save-button" type="button" data-save-milestone>Save This Milestone</button>
+                  <button class="button-secondary milestone-upload-button" type="button" data-upload-milestone <?= $milestone ? '' : 'disabled' ?>>Upload Images for This Milestone</button>
+                  <button class="image-delete-link milestone-delete-button" type="button" data-delete-milestone <?= $milestone ? '' : 'disabled' ?>>Delete This Milestone</button>
+                  <span class="milestone-ajax-status" data-milestone-status></span>
                 </div>
               </div>
             </div>
           <?php endfor; ?>
         </section>
 
-        <button class="button-primary form-submit" type="submit">Save and Generate QR</button>
+        <button class="button-primary form-submit" type="submit">Save Memorial Details</button>
       </form>
 
       <?php if ($memorial): ?>
@@ -510,6 +813,184 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
         </form>
       <?php endif; ?>
     </main>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script>
+      $(function () {
+        const memorialId = <?= (int) ($memorial['id'] ?? 0) ?>;
+
+        function setStatus($box, message, type) {
+          const $status = $box.find('[data-milestone-status]');
+          $status.removeClass('is-success is-error').addClass(type === 'error' ? 'is-error' : 'is-success').text(message);
+        }
+
+        function ajaxErrorMessage(xhr, fallback) {
+          return (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : fallback;
+        }
+
+        $('[data-save-milestone]').on('click', function () {
+          const $button = $(this);
+          const $box = $button.closest('[data-milestone-box]');
+
+          $button.prop('disabled', true);
+          setStatus($box, 'Saving...', 'success');
+
+          $.ajax({
+            url: 'dashboard.php',
+            method: 'POST',
+            dataType: 'json',
+            data: {
+              ajax: '1',
+              form_action: 'save_milestone',
+              memorial_id: memorialId,
+              milestone_id: $box.find('[data-milestone-id]').val(),
+              sort_order: $box.find('[data-sort-order]').val(),
+              title: $box.find('[data-milestone-title]').val(),
+              milestone_date: $box.find('[data-milestone-date]').val(),
+              description: $box.find('[data-milestone-description]').val()
+            }
+          }).done(function (response) {
+            $box.find('[data-milestone-id]').val(response.milestone_id);
+            $box.find('[data-milestone-images], [data-upload-milestone], [data-delete-milestone]').prop('disabled', false);
+            $box.find('.field-note').text('Maximum <?= MAX_MILESTONE_IMAGES ?> images for this milestone. This upload will not change the QR code.');
+            setStatus($box, response.message || 'Milestone saved.', 'success');
+          }).fail(function (xhr) {
+            setStatus($box, ajaxErrorMessage(xhr, 'Milestone could not be saved.'), 'error');
+          }).always(function () {
+            $button.prop('disabled', false);
+          });
+        });
+
+        $('[data-upload-milestone]').on('click', function () {
+          const $button = $(this);
+          const $box = $button.closest('[data-milestone-box]');
+          const milestoneId = $box.find('[data-milestone-id]').val();
+          const files = $box.find('[data-milestone-images]')[0].files;
+
+          if (!milestoneId || milestoneId === '0') {
+            setStatus($box, 'Save this milestone first.', 'error');
+            return;
+          }
+
+          if (!files.length) {
+            setStatus($box, 'Choose at least one image first.', 'error');
+            return;
+          }
+
+          const formData = new FormData();
+          formData.append('ajax', '1');
+          formData.append('form_action', 'upload_milestone_images');
+          formData.append('memorial_id', memorialId);
+          formData.append('milestone_id', milestoneId);
+
+          $.each(files, function (_, file) {
+            formData.append('milestone_images[]', file);
+          });
+
+          $button.prop('disabled', true);
+          setStatus($box, 'Uploading...', 'success');
+
+          $.ajax({
+            url: 'dashboard.php',
+            method: 'POST',
+            dataType: 'json',
+            data: formData,
+            processData: false,
+            contentType: false
+          }).done(function (response) {
+            const $preview = $box.find('[data-milestone-preview]');
+            $preview.find('p').remove();
+            $preview.append(response.html || '');
+            $box.find('[data-milestone-images]').val('');
+            setStatus($box, response.message || 'Images uploaded.', 'success');
+          }).fail(function (xhr) {
+            setStatus($box, ajaxErrorMessage(xhr, 'Images could not be uploaded.'), 'error');
+          }).always(function () {
+            $button.prop('disabled', false);
+          });
+        });
+
+        $('[data-delete-milestone]').on('click', function () {
+          const $button = $(this);
+          const $box = $button.closest('[data-milestone-box]');
+          const milestoneId = $box.find('[data-milestone-id]').val();
+
+          if (!milestoneId || milestoneId === '0') {
+            setStatus($box, 'This milestone is not saved yet.', 'error');
+            return;
+          }
+
+          if (!confirm('Delete this milestone and its images?')) {
+            return;
+          }
+
+          $button.prop('disabled', true);
+          setStatus($box, 'Deleting...', 'success');
+
+          $.ajax({
+            url: 'dashboard.php',
+            method: 'POST',
+            dataType: 'json',
+            data: {
+              ajax: '1',
+              form_action: 'delete_milestone',
+              memorial_id: memorialId,
+              milestone_id: milestoneId
+            }
+          }).done(function (response) {
+            $box.find('[data-milestone-id]').val('0');
+            $box.find('[data-milestone-title], [data-milestone-date], [data-milestone-description]').val('');
+            $box.find('[data-milestone-images]').val('').prop('disabled', true);
+            $box.find('[data-upload-milestone], [data-delete-milestone]').prop('disabled', true);
+            $box.find('[data-milestone-preview]').html('<p>No milestone images yet.</p>');
+            $box.find('.field-note').text('Save this milestone first, then upload images for it.');
+            setStatus($box, response.message || 'Milestone deleted.', 'success');
+          }).fail(function (xhr) {
+            $button.prop('disabled', false);
+            setStatus($box, ajaxErrorMessage(xhr, 'Milestone could not be deleted.'), 'error');
+          });
+        });
+
+        $(document).on('click', '[data-image-delete]', function () {
+          const $button = $(this);
+          const $item = $button.closest('.image-preview-item');
+          const $box = $button.closest('[data-milestone-box]');
+
+          $button.prop('disabled', true).text('Deleting...');
+
+          $.ajax({
+            url: 'dashboard.php',
+            method: 'POST',
+            dataType: 'json',
+            data: {
+              ajax: '1',
+              form_action: 'delete_image',
+              memorial_id: memorialId,
+              image_delete: $button.data('image-delete')
+            }
+          }).done(function (response) {
+            $item.remove();
+
+            if ($box.length) {
+              const $preview = $box.find('[data-milestone-preview]');
+
+              if (!$preview.find('.image-preview-item').length) {
+                $preview.html('<p>No milestone images yet.</p>');
+              }
+
+              setStatus($box, response.message || 'Image deleted.', 'success');
+            }
+          }).fail(function (xhr) {
+            $button.prop('disabled', false).text('Delete');
+
+            if ($box.length) {
+              setStatus($box, ajaxErrorMessage(xhr, 'Image could not be deleted.'), 'error');
+            } else {
+              alert(ajaxErrorMessage(xhr, 'Image could not be deleted.'));
+            }
+          });
+        });
+      });
+    </script>
   </body>
 </html>
 

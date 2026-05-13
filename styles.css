@@ -1045,14 +1045,41 @@ h2 {
   margin: 0;
 }
 
+.image-preview-item {
+  display: grid;
+  gap: 6px;
+  width: 150px;
+  flex: 0 0 150px;
+}
+
 .image-preview-list img {
   width: 150px !important;
   height: 150px !important;
+  min-width: 150px;
+  flex: 0 0 150px;
   max-width: 150px;
   object-fit: cover;
   border: 3px solid var(--white);
   border-radius: 8px;
   box-shadow: 0 8px 22px rgba(24, 41, 54, 0.1);
+}
+
+.image-delete-link {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #8b2f21;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.image-delete-link:hover {
+  color: #5f1f16;
 }
 
 .image-preview-list p {
@@ -1064,6 +1091,50 @@ h2 {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
+}
+
+.milestone-ajax-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.memorial-form .milestone-upload-button,
+.memorial-form .milestone-save-button {
+  justify-self: start;
+  width: auto;
+  min-height: 44px;
+  border: 1px solid rgba(33, 76, 99, 0.18);
+  background: var(--white);
+  color: var(--accent-dark);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.milestone-delete-button {
+  min-height: 44px;
+  padding: 0 4px;
+}
+
+.milestone-ajax-status {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.milestone-ajax-status.is-success {
+  color: #1f6848;
+}
+
+.milestone-ajax-status.is-error {
+  color: #8b2f21;
+}
+
+.milestone-ajax-actions button:disabled,
+.image-delete-link:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .memorial-preview-page {
