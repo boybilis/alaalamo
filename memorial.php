@@ -68,6 +68,23 @@ function memorial_date_range(array $memorial): string
     return $birthDate !== '' ? $birthDate : $deathDate;
 }
 
+function qr_plan_type(?array $qrGroup): string
+{
+    return (($qrGroup['plan_type'] ?? 'regular') === 'premium') ? 'premium' : 'regular';
+}
+
+function qr_plan_limits(?array $qrGroup): array
+{
+    $isPremium = qr_plan_type($qrGroup) === 'premium';
+
+    return [
+        'gallery_images' => $isPremium ? 20 : 6,
+        'milestones' => $isPremium ? 5 : 2,
+        'milestone_images' => $isPremium ? 6 : 2,
+        'life_story' => $isPremium,
+    ];
+}
+
 $pdo = db();
 $stmt = $pdo->prepare('SELECT * FROM qr_groups WHERE public_token = ? LIMIT 1');
 $stmt->execute([$token]);
@@ -112,6 +129,7 @@ if ($selectedId > 0 && $qrGroup) {
 }
 
 $themeStyle = memorial_theme_style($memorial);
+$planLimits = qr_plan_limits($qrGroup ?: null);
 
 if ($isGroupView): ?>
 <!doctype html>
@@ -124,10 +142,10 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-18') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-23') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
-    <main class="mobile-memorial">
+    <main class="mobile-memorial mobile-memorial-group">
       <section class="mobile-memorial-header">
         <p class="section-eyebrow">Family tribute</p>
         <h1>Memorials in this QR</h1>
@@ -164,12 +182,12 @@ if ($isGroupView): ?>
 </html>
 <?php exit; endif;
 
-$stmt = $pdo->prepare('SELECT * FROM memorial_images WHERE memorial_id = ? ORDER BY id ASC LIMIT 20');
+$stmt = $pdo->prepare('SELECT * FROM memorial_images WHERE memorial_id = ? ORDER BY id ASC LIMIT ' . (int) $planLimits['gallery_images']);
 $stmt->execute([(int) $memorial['id']]);
 $images = $stmt->fetchAll();
 $coverImage = $images[0]['image_path'] ?? '';
 
-$stmt = $pdo->prepare('SELECT * FROM milestones WHERE memorial_id = ? ORDER BY sort_order ASC, id ASC');
+$stmt = $pdo->prepare('SELECT * FROM milestones WHERE memorial_id = ? ORDER BY sort_order ASC, id ASC LIMIT ' . (int) $planLimits['milestones']);
 $stmt->execute([(int) $memorial['id']]);
 $milestones = $stmt->fetchAll();
 
@@ -179,7 +197,8 @@ if ($milestones) {
         'SELECT mi.*
          FROM milestone_images mi
          WHERE mi.milestone_id = ?
-         ORDER BY mi.id ASC'
+         ORDER BY mi.id ASC
+         LIMIT ' . (int) $planLimits['milestone_images']
     );
 
     foreach ($milestones as $milestone) {
@@ -201,7 +220,7 @@ if ($milestones) {
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-18') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-23') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -234,7 +253,7 @@ if ($milestones) {
             </p>
           <?php endif; ?>
           <div class="memorial-hero-actions d-grid gap-2 mt-3">
-            <?php if (!empty($memorial['autobiography_text']) || $milestones): ?>
+            <?php if ($planLimits['life_story'] && (!empty($memorial['autobiography_text']) || $milestones)): ?>
               <button class="btn btn-light btn-lg story-play-button" type="button">Play Life Story</button>
             <?php endif; ?>
             <?php if ($images): ?>
@@ -246,12 +265,18 @@ if ($milestones) {
 
       <?php if (!empty($memorial['short_description'])): ?>
         <section class="mobile-memorial-section">
-          <h2>About</h2>
-          <p><?= nl2br(htmlspecialchars($memorial['short_description'], ENT_QUOTES, 'UTF-8')) ?></p>
+          <article class="memorial-info-card">
+            <header class="memorial-info-card-head">
+              <h2>About</h2>
+            </header>
+            <div class="memorial-info-card-body">
+              <p><?= nl2br(htmlspecialchars($memorial['short_description'], ENT_QUOTES, 'UTF-8')) ?></p>
+            </div>
+          </article>
         </section>
       <?php endif; ?>
 
-      <?php if (!empty($memorial['autobiography_text'])): ?>
+      <?php if ($planLimits['life_story'] && !empty($memorial['autobiography_text'])): ?>
         <section class="mobile-memorial-section life-story-player">
           <h2>Life Story</h2>
           <p><?= nl2br(htmlspecialchars($memorial['autobiography_text'], ENT_QUOTES, 'UTF-8')) ?></p>
@@ -261,7 +286,7 @@ if ($milestones) {
 
       <?php if ($images): ?>
         <section class="mobile-memorial-section" id="gallery">
-          <h2>Photos</h2>
+          <h2>Gallery</h2>
           <div class="preview-gallery row g-2">
             <?php foreach ($images as $image): ?>
               <div class="col-6">

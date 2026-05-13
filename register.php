@@ -10,6 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $lastName = clean_input($_POST['last_name'] ?? '');
 $givenName = clean_input($_POST['given_name'] ?? '');
 $email = strtolower(clean_input($_POST['email'] ?? ''));
+$selectedPlan = clean_input($_POST['plan_type'] ?? 'regular');
+$selectedPlan = $selectedPlan === 'premium' ? 'premium' : 'regular';
 
 if ($lastName === '' || $givenName === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     flash('error', 'Please enter your last name, given name, and a valid email address.');
@@ -34,6 +36,18 @@ if ($user) {
     $pdo->prepare('INSERT INTO users (last_name, given_name, email) VALUES (?, ?, ?)')
         ->execute([$lastName, $givenName, $email]);
     $userId = (int) $pdo->lastInsertId();
+}
+
+$stmt = $pdo->prepare('SELECT id FROM qr_groups WHERE user_id = ? ORDER BY id ASC LIMIT 1');
+$stmt->execute([$userId]);
+$qrGroupId = $stmt->fetchColumn();
+
+if ($qrGroupId) {
+    $pdo->prepare('UPDATE qr_groups SET plan_type = ? WHERE id = ?')
+        ->execute([$selectedPlan, (int) $qrGroupId]);
+} else {
+    $pdo->prepare('INSERT INTO qr_groups (user_id, public_token, plan_type) VALUES (?, ?, ?)')
+        ->execute([$userId, generate_token(), $selectedPlan]);
 }
 
 $otp = create_otp($userId, 'registration');

@@ -75,6 +75,7 @@ $pricingPlans = [
             'QR-access memorial page',
             'Memorial details and service information',
             'A small set of selected photos',
+            'Additional standard memorials at PHP 399 each',
             'Private from public web search',
         ],
     ],
@@ -89,6 +90,7 @@ $pricingPlans = [
             'Gallery with up to 20 images',
             'Guided milestones from the form',
             'Autobiography shaped from the memories provided',
+            'Additional premium memorials at PHP 700 each',
         ],
         'featured' => true,
     ],
@@ -112,7 +114,7 @@ $registrationFlash = get_flash();
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
     >
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-18') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-23') ?>">
   </head>
   <body>
     <header class="site-header" aria-label="Main navigation">
@@ -291,6 +293,13 @@ $registrationFlash = get_flash();
             <label>
               Email address
               <input type="email" name="email" autocomplete="email" required>
+            </label>
+            <label>
+              Subscription plan
+              <select name="plan_type" required>
+                <option value="regular">Standard - PHP 599 / year</option>
+                <option value="premium">Premium - PHP 999 / year</option>
+              </select>
             </label>
             <div class="signup-steps form-full" aria-label="Signup steps">
               <span><i class="fa-solid fa-user-plus" aria-hidden="true"></i> 1. Sign up</span>

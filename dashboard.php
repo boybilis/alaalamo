@@ -74,6 +74,29 @@ function clean_hex_color(string $value, string $fallback): string
     return $fallback;
 }
 
+function qr_plan_type(array $qrGroup): string
+{
+    return ($qrGroup['plan_type'] ?? 'regular') === 'premium' ? 'premium' : 'regular';
+}
+
+function qr_plan_limits(array $qrGroup): array
+{
+    $isPremium = qr_plan_type($qrGroup) === 'premium';
+
+    return [
+        'gallery_images' => $isPremium ? 20 : 6,
+        'milestones' => $isPremium ? 5 : 2,
+        'milestone_images' => $isPremium ? 6 : 2,
+        'milestone_characters' => $isPremium ? 500 : 250,
+        'life_story' => $isPremium,
+    ];
+}
+
+function qr_additional_memorial_price(array $qrGroup): int
+{
+    return qr_plan_type($qrGroup) === 'premium' ? 700 : 399;
+}
+
 function is_ajax_request(): bool
 {
     return ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest'
@@ -92,7 +115,7 @@ function image_preview_html(array $image, string $type): string
 {
     $path = htmlspecialchars((string) $image['image_path'], ENT_QUOTES, 'UTF-8');
     $id = (int) $image['id'];
-    $label = $type === 'profile' ? 'Profile image preview' : 'Milestone image preview';
+    $label = $type === 'profile' ? 'Gallery image preview' : 'Milestone image preview';
 
     return '<div class="image-preview-item">'
         . '<img src="' . $path . '" alt="' . $label . '">'
@@ -124,9 +147,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $formAction = clean_input($_POST['form_action'] ?? 'save_memorial');
     $memorialIdInput = (int) ($_POST['memorial_id'] ?? 0);
     $qrGroup = ensure_qr_group((int) $user['id']);
+    $planLimits = qr_plan_limits($qrGroup);
     $isAjax = is_ajax_request();
 
     if ($formAction === 'generate_ai_story') {
+        if (!$planLimits['life_story']) {
+            flash('error', 'Premium Life Story is available only on premium plans.');
+            redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
+        }
+
         if (!openai_is_configured()) {
             flash('error', 'OpenAI API key is not configured yet. Add it in config.php before generating the premium life story.');
             redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
@@ -218,10 +247,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare('DELETE FROM memorial_images WHERE id = ?')->execute([$imageId]);
                 delete_uploaded_asset($image['image_path'] ?? null);
                 if ($isAjax) {
-                    json_response(['ok' => true, 'message' => 'Profile image deleted.']);
+                    json_response(['ok' => true, 'message' => 'Gallery image deleted.']);
                 }
 
-                flash('success', 'Profile image deleted.');
+                flash('success', 'Gallery image deleted.');
                 redirect_to('/dashboard.php?memorial_id=' . (int) $image['memorial_id']);
             }
         }
@@ -260,7 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($formAction === 'save_milestone') {
         $milestoneIdInput = (int) ($_POST['milestone_id'] ?? 0);
-        $sortOrder = max(0, min(MAX_MILESTONES - 1, (int) ($_POST['sort_order'] ?? 0)));
+        $sortOrder = max(0, min($planLimits['milestones'] - 1, (int) ($_POST['sort_order'] ?? 0)));
         $title = clean_input($_POST['title'] ?? '');
         $milestoneDate = clean_input($_POST['milestone_date'] ?? '');
         $description = clean_input($_POST['description'] ?? '');
@@ -275,6 +304,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($title === '') {
             json_response(['ok' => false, 'message' => 'Milestone title is required.'], 422);
+        }
+
+        if (strlen($description) > $planLimits['milestone_characters']) {
+            json_response([
+                'ok' => false,
+                'message' => 'Milestone description is limited to ' . $planLimits['milestone_characters'] . ' characters for this plan.',
+            ], 422);
         }
 
         $stmt = $pdo->prepare('SELECT * FROM memorials WHERE id = ? AND user_id = ? AND qr_group_id = ? LIMIT 1');
@@ -303,7 +339,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $countStmt = $pdo->prepare('SELECT COUNT(*) FROM milestones WHERE memorial_id = ?');
             $countStmt->execute([$memorialIdInput]);
 
-            if ((int) $countStmt->fetchColumn() >= MAX_MILESTONES) {
+            if ((int) $countStmt->fetchColumn() >= $planLimits['milestones']) {
                 json_response(['ok' => false, 'message' => 'Maximum milestones reached.'], 422);
             }
 
@@ -390,7 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM milestone_images WHERE milestone_id = ?');
         $existingCountStmt->execute([(int) $targetMilestone['id']]);
         $existingCount = (int) $existingCountStmt->fetchColumn();
-        $remainingSlots = max(0, MAX_MILESTONE_IMAGES - $existingCount);
+        $remainingSlots = max(0, $planLimits['milestone_images'] - $existingCount);
 
         if ($remainingSlots === 0) {
             if ($isAjax) {
@@ -512,7 +548,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM memorial_images WHERE memorial_id = ?');
             $existingCountStmt->execute([$memorialId]);
             $existingCount = (int) $existingCountStmt->fetchColumn();
-            $remainingSlots = max(0, MAX_PROFILE_IMAGES - $existingCount);
+            $remainingSlots = max(0, $planLimits['gallery_images'] - $existingCount);
             $profileUploadCount = min(count($_FILES['profile_images']['name']), $remainingSlots);
 
             for ($i = 0; $i < $profileUploadCount; $i++) {
@@ -529,11 +565,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $titles = $_POST['milestone_title'] ?? [];
         $dates = $_POST['milestone_date'] ?? [];
         $descriptions = $_POST['milestone_description'] ?? [];
-        $milestoneCount = min(count($titles), MAX_MILESTONES);
+        $milestoneCount = min(count($titles), $planLimits['milestones']);
 
         for ($i = 0; $i < $milestoneCount; $i++) {
             $milestoneIdInput = (int) ($milestoneIds[$i] ?? 0);
             $title = clean_input($titles[$i] ?? '');
+            $description = substr(clean_input($descriptions[$i] ?? ''), 0, $planLimits['milestone_characters']);
 
             if ($title === '') {
                 continue;
@@ -547,7 +584,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 )->execute([
                     $title,
                     clean_input($dates[$i] ?? ''),
-                    clean_input($descriptions[$i] ?? ''),
+                    $description,
                     $i,
                     $milestoneIdInput,
                     $memorialId,
@@ -560,7 +597,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $memorialId,
                     $title,
                     clean_input($dates[$i] ?? ''),
-                    clean_input($descriptions[$i] ?? ''),
+                    $description,
                     $i,
                 ]);
             }
@@ -578,6 +615,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $qrGroup = ensure_qr_group((int) $user['id']);
+$planType = qr_plan_type($qrGroup);
+$planLimits = qr_plan_limits($qrGroup);
 $stmt = $pdo->prepare('SELECT * FROM memorials WHERE user_id = ? AND qr_group_id = ? ORDER BY id ASC');
 $stmt->execute([(int) $user['id'], (int) $qrGroup['id']]);
 $memorials = $stmt->fetchAll();
@@ -625,7 +664,8 @@ if ($memorial) {
 $flash = get_flash();
 $previewUrl = app_base_url() . '/memorial.php?t=' . urlencode($qrGroup['public_token']);
 $qrUrl = $previewUrl !== '' ? 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($previewUrl) : '';
-$additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
+$additionalMemorialPrice = qr_additional_memorial_price($qrGroup);
+$additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
 ?>
 <!doctype html>
 <html lang="en">
@@ -633,7 +673,7 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-18') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-23') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
@@ -649,9 +689,14 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
         <p class="section-eyebrow">Memorial dashboard</p>
         <h1>Welcome, <?= htmlspecialchars($user['given_name'], ENT_QUOTES, 'UTF-8') ?>.</h1>
         <p>
-          Fill up the memorial profile first, then add up to <?= MAX_MILESTONES ?> life milestones.
-          Each milestone can include up to <?= MAX_MILESTONE_IMAGES ?> images. When saved, AlaalaMo
+          Fill up the memorial profile first, then add up to <?= $planLimits['milestones'] ?> life milestones.
+          Each milestone can include up to <?= $planLimits['milestone_images'] ?> images. When saved, AlaalaMo
           generates one private QR that can hold up to <?= MAX_MEMORIALS_PER_QR ?> memorial pages.
+        </p>
+        <p class="field-note">
+          Current plan: <?= htmlspecialchars(ucfirst($planType), ENT_QUOTES, 'UTF-8') ?>.
+          Gallery limit: <?= $planLimits['gallery_images'] ?> images.
+          Milestone text limit: <?= $planLimits['milestone_characters'] ?> characters.
         </p>
 
         <?php if ($flash): ?>
@@ -677,7 +722,7 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
         <?php if ($qrUrl): ?>
           <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
           <a class="button-primary" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Open Preview</a>
-          <p><?= count($memorials) ?> of <?= MAX_MEMORIALS_PER_QR ?> memorials in this QR. Extra memorials are PHP <?= ADDITIONAL_MEMORIAL_PRICE ?> each.</p>
+          <p><?= count($memorials) ?> of <?= MAX_MEMORIALS_PER_QR ?> memorials in this QR. Extra <?= htmlspecialchars($planType, ENT_QUOTES, 'UTF-8') ?> memorials are PHP <?= number_format($additionalMemorialPrice) ?> each.</p>
           <?php if ($additionalCost > 0): ?>
             <p>Additional memorial total: PHP <?= number_format($additionalCost) ?> per year.</p>
           <?php endif; ?>
@@ -689,7 +734,10 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
       <form class="memorial-form" method="post" action="dashboard.php" enctype="multipart/form-data">
         <section class="form-section">
           <h2>Memorials in this QR</h2>
-          <p>Premium promo: one QR can include up to <?= MAX_MEMORIALS_PER_QR ?> memorial pages. Each additional memorial is PHP <?= ADDITIONAL_MEMORIAL_PRICE ?> per year.</p>
+          <p>
+            One QR can include up to <?= MAX_MEMORIALS_PER_QR ?> memorial pages.
+            Each additional <?= htmlspecialchars($planType, ENT_QUOTES, 'UTF-8') ?> memorial is PHP <?= number_format($additionalMemorialPrice) ?> per year.
+          </p>
           <?php if ($memorials): ?>
             <div class="dashboard-memorial-list">
               <?php foreach ($memorials as $item): ?>
@@ -753,31 +801,17 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
                 <span class="field-note">Page background</span>
               </label>
             </div>
-            <label class="form-full">
-              Profile images
-              <input type="file" name="profile_images[]" accept="image/jpeg,image/png,image/webp" multiple>
-              <span class="field-note">You may upload memorial profile photos. Premium supports up to <?= MAX_PROFILE_IMAGES ?> gallery images.</span>
-            </label>
-            <div class="image-preview-list form-full">
-              <?php if ($profileImages): ?>
-                <?php foreach ($profileImages as $image): ?>
-                  <div class="image-preview-item">
-                    <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Profile image preview">
-                    <button class="image-delete-link" type="button" data-image-delete="profile:<?= (int) $image['id'] ?>">Delete</button>
-                  </div>
-                <?php endforeach; ?>
-              <?php else: ?>
-                <p>No profile images yet.</p>
-              <?php endif; ?>
-            </div>
           </div>
         </section>
 
         <section class="form-section">
           <h2>Life Milestones</h2>
-          <p>Add up to <?= MAX_MILESTONES ?> milestones. Each one can have up to <?= MAX_MILESTONE_IMAGES ?> images.</p>
+          <p>
+            Add up to <?= $planLimits['milestones'] ?> milestones. Each one can have up to
+            <?= $planLimits['milestone_images'] ?> images and <?= $planLimits['milestone_characters'] ?> characters.
+          </p>
 
-          <?php for ($i = 0; $i < MAX_MILESTONES; $i++): ?>
+          <?php for ($i = 0; $i < $planLimits['milestones']; $i++): ?>
             <?php $milestone = $milestones[$i] ?? null; ?>
             <?php $imagesForMilestone = $milestone ? ($milestoneImages[(int) $milestone['id']] ?? []) : []; ?>
             <div class="milestone-box" data-milestone-box>
@@ -795,13 +829,14 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
                 </label>
                 <label class="form-full">
                   Description
-                  <textarea name="milestone_description[]" data-milestone-description rows="3" placeholder="What happened in this chapter of their life?"><?= htmlspecialchars($milestone['description'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                  <textarea name="milestone_description[]" data-milestone-description rows="3" maxlength="<?= $planLimits['milestone_characters'] ?>" placeholder="What happened in this chapter of their life?"><?= htmlspecialchars($milestone['description'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                  <span class="field-note">Maximum <?= $planLimits['milestone_characters'] ?> characters.</span>
                 </label>
                 <label class="form-full">
                   Milestone images
                   <?php if ($milestone): ?>
                     <input type="file" name="milestone_images[]" data-milestone-images accept="image/jpeg,image/png,image/webp" multiple>
-                    <span class="field-note">Maximum <?= MAX_MILESTONE_IMAGES ?> images for this milestone. This upload will not change the QR code.</span>
+                    <span class="field-note">Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. This upload will not change the QR code.</span>
                   <?php else: ?>
                     <input type="file" name="milestone_images[]" data-milestone-images accept="image/jpeg,image/png,image/webp" multiple disabled>
                     <span class="field-note">Save this milestone first, then upload images for it.</span>
@@ -830,10 +865,37 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
           <?php endfor; ?>
         </section>
 
+        <section class="form-section">
+          <h2>Gallery</h2>
+          <p>
+            Upload photos for the memorial gallery and hero slideshow.
+            <?= $planType === 'premium' ? 'Premium supports up to 20 gallery images.' : 'Regular supports up to 6 gallery images.' ?>
+          </p>
+          <div class="form-grid">
+            <label class="form-full">
+              Gallery images
+              <input type="file" name="profile_images[]" accept="image/jpeg,image/png,image/webp" multiple>
+              <span class="field-note"><?= count($profileImages) ?> of <?= $planLimits['gallery_images'] ?> gallery images used.</span>
+            </label>
+            <div class="image-preview-list form-full">
+              <?php if ($profileImages): ?>
+                <?php foreach ($profileImages as $image): ?>
+                  <div class="image-preview-item">
+                    <img src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>" alt="Gallery image preview">
+                    <button class="image-delete-link" type="button" data-image-delete="profile:<?= (int) $image['id'] ?>">Delete</button>
+                  </div>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <p>No gallery images yet.</p>
+              <?php endif; ?>
+            </div>
+          </div>
+        </section>
+
         <button class="button-primary form-submit" type="submit">Save Memorial Details</button>
       </form>
 
-      <?php if ($memorial): ?>
+      <?php if ($memorial && $planLimits['life_story']): ?>
         <form class="memorial-form ai-story-form" method="post" action="dashboard.php">
           <input type="hidden" name="form_action" value="generate_ai_story">
           <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
@@ -892,7 +954,7 @@ $additionalCost = max(0, count($memorials) - 1) * ADDITIONAL_MEMORIAL_PRICE;
           }).done(function (response) {
             $box.find('[data-milestone-id]').val(response.milestone_id);
             $box.find('[data-milestone-images], [data-upload-milestone], [data-delete-milestone]').prop('disabled', false);
-            $box.find('.field-note').text('Maximum <?= MAX_MILESTONE_IMAGES ?> images for this milestone. This upload will not change the QR code.');
+            $box.find('[data-milestone-images]').siblings('.field-note').text('Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. This upload will not change the QR code.');
             setStatus($box, response.message || 'Milestone saved.', 'success');
           }).fail(function (xhr) {
             setStatus($box, ajaxErrorMessage(xhr, 'Milestone could not be saved.'), 'error');
