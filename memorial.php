@@ -871,8 +871,8 @@ $messageFlash = get_flash();
         <div class="image-lightbox-copy" hidden>
           <p class="image-lightbox-caption"></p>
           <p class="image-lightbox-credit"></p>
-          <p class="image-lightbox-hint">Swipe left or right to browse images.</p>
         </div>
+        <p class="image-lightbox-hint">Swipe left or right to browse images.</p>
       </section>
     </div>
     <div class="modal fade" id="messageLoveModal" tabindex="-1" aria-hidden="true">
