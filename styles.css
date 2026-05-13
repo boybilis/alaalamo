@@ -1170,7 +1170,8 @@ h2 {
 
 .memorial-preview-page {
   min-height: 100vh;
-  background: color-mix(in srgb, var(--memorial-tertiary, #fbfaf7) 76%, #d8e0e8);
+  background: var(--memorial-tertiary, #fbfaf7);
+  color: var(--memorial-tertiary-text, #1f2933);
 }
 
 .mobile-memorial {
@@ -1180,6 +1181,9 @@ h2 {
   --memorial-primary: var(--accent-dark);
   --memorial-secondary: var(--beige);
   --memorial-tertiary: var(--paper);
+  --memorial-primary-text: var(--white);
+  --memorial-secondary-text: var(--accent-dark);
+  --memorial-tertiary-text: var(--ink);
   font-family: "Inter", Arial, Helvetica, sans-serif;
   box-shadow: 0 0 60px rgba(24, 41, 54, 0.2);
 }
@@ -1197,7 +1201,7 @@ h2 {
   padding: 28px 18px;
   text-align: center;
   background: var(--memorial-primary);
-  color: var(--white);
+  color: var(--memorial-primary-text);
 }
 
 .mobile-memorial-header img {
@@ -1209,12 +1213,13 @@ h2 {
 }
 
 .mobile-memorial-header h1 {
-  color: var(--white);
+  color: var(--memorial-primary-text);
   font-size: 38px;
 }
 
 .mobile-memorial-header p {
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--memorial-primary-text);
+  opacity: 0.86;
 }
 
 .mobile-memorial-cover {
@@ -1223,7 +1228,7 @@ h2 {
   min-height: 100svh;
   padding: 28px 18px;
   background: var(--memorial-primary);
-  color: var(--white);
+  color: var(--memorial-primary-text);
   overflow: hidden;
 }
 
@@ -1232,7 +1237,7 @@ h2 {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(180deg, transparent 30%, color-mix(in srgb, var(--memorial-primary) 82%, transparent));
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.04) 0%, var(--memorial-primary) 84%);
 }
 
 .profile-cover-slideshow {
@@ -1265,7 +1270,7 @@ h2 {
 }
 
 .mobile-memorial-cover h1 {
-  color: var(--white);
+  color: var(--memorial-primary-text);
   font-size: 44px;
   text-shadow: 0 2px 22px rgba(0, 0, 0, 0.32);
 }
@@ -1273,7 +1278,8 @@ h2 {
 .memorial-dates,
 .memorial-resting-place {
   margin: 0;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--memorial-primary-text);
+  opacity: 0.86;
   font-weight: 700;
 }
 
@@ -1281,7 +1287,8 @@ h2 {
   margin: 10px 0 0;
   padding-left: 16px;
   border-left: 4px solid var(--memorial-secondary);
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--memorial-primary-text);
+  opacity: 0.94;
   font-size: 19px;
   line-height: 1.55;
 }
@@ -1294,22 +1301,24 @@ h2 {
 .memorial-hero-actions .btn-light {
   background: var(--memorial-secondary);
   border-color: var(--memorial-secondary);
-  color: var(--memorial-primary);
+  color: var(--memorial-secondary-text);
 }
 
 .mobile-memorial-section {
   padding: 22px 18px;
-  border-bottom: 1px solid color-mix(in srgb, var(--memorial-primary) 14%, transparent);
+  border-bottom: 1px solid rgba(31, 41, 51, 0.12);
+  color: var(--memorial-tertiary-text);
 }
 
 .mobile-memorial-section h2 {
   margin: 0 0 14px;
-  color: var(--memorial-primary);
+  color: var(--memorial-tertiary-text);
   font-size: 22px;
 }
 
 .mobile-memorial-section p {
-  color: var(--muted);
+  color: var(--memorial-tertiary-text);
+  opacity: 0.8;
   line-height: 1.6;
 }
 
@@ -1320,7 +1329,7 @@ h2 {
 }
 
 .mobile-memorial-footer a {
-  color: var(--memorial-secondary);
+  color: var(--memorial-primary-text);
   font-size: 13px;
   font-weight: 800;
   text-decoration: none;
@@ -1389,13 +1398,14 @@ h2 {
 
 .preview-milestone.is-playing {
   padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--memorial-primary) 16%, transparent);
+  border: 1px solid rgba(31, 41, 51, 0.14);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--memorial-secondary) 20%, #ffffff);
+  background: var(--memorial-secondary);
+  color: var(--memorial-secondary-text);
 }
 
 .preview-milestone span {
-  color: var(--memorial-primary);
+  color: inherit;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -1471,7 +1481,7 @@ h2 {
   height: 100%;
   margin: 0 auto;
   background: var(--memorial-primary);
-  color: var(--white);
+  color: var(--memorial-primary-text);
   overflow: hidden;
 }
 
@@ -1504,8 +1514,8 @@ h2 {
   content: "";
   position: absolute;
   inset: auto 0 0;
-  height: 38%;
-  background: linear-gradient(0deg, var(--memorial-primary), transparent);
+  height: 46%;
+  background: linear-gradient(0deg, var(--memorial-primary) 10%, rgba(0, 0, 0, 0));
 }
 
 .story-modal-image {
@@ -1534,18 +1544,20 @@ h2 {
 
 .story-modal-copy h2 {
   width: auto;
-  color: var(--white);
+  color: var(--memorial-primary-text);
   font-size: 34px;
 }
 
 .story-modal-text {
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--memorial-primary-text);
+  opacity: 0.86;
   font-size: 16px;
   line-height: 1.7;
 }
 
 .story-modal-step {
-  color: var(--memorial-secondary);
+  color: var(--memorial-primary-text);
+  opacity: 0.78;
 }
 
 @media (max-width: 980px) {

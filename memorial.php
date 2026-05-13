@@ -10,6 +10,41 @@ if ($token === '' || !preg_match('/^[a-f0-9]{64}$/', $token)) {
     exit('Memorial not found.');
 }
 
+function memorial_theme_color(array $memorial, string $key, string $fallback): string
+{
+    $color = (string) ($memorial[$key] ?? '');
+
+    return preg_match('/^#[0-9a-fA-F]{6}$/', $color) ? strtolower($color) : $fallback;
+}
+
+function readable_text_color(string $hexColor): string
+{
+    $hex = ltrim($hexColor, '#');
+    $red = hexdec(substr($hex, 0, 2));
+    $green = hexdec(substr($hex, 2, 2));
+    $blue = hexdec(substr($hex, 4, 2));
+    $brightness = (($red * 299) + ($green * 587) + ($blue * 114)) / 1000;
+
+    return $brightness >= 150 ? '#1f2933' : '#ffffff';
+}
+
+function memorial_theme_style(array $memorial): string
+{
+    $primary = memorial_theme_color($memorial, 'theme_primary', '#214c63');
+    $secondary = memorial_theme_color($memorial, 'theme_secondary', '#eadcc8');
+    $tertiary = memorial_theme_color($memorial, 'theme_tertiary', '#fbfaf7');
+    $style = [
+        '--memorial-primary: ' . $primary,
+        '--memorial-secondary: ' . $secondary,
+        '--memorial-tertiary: ' . $tertiary,
+        '--memorial-primary-text: ' . readable_text_color($primary),
+        '--memorial-secondary-text: ' . readable_text_color($secondary),
+        '--memorial-tertiary-text: ' . readable_text_color($tertiary),
+    ];
+
+    return htmlspecialchars(implode('; ', $style) . ';', ENT_QUOTES, 'UTF-8');
+}
+
 $pdo = db();
 $stmt = $pdo->prepare('SELECT * FROM qr_groups WHERE public_token = ? LIMIT 1');
 $stmt->execute([$token]);
@@ -53,6 +88,8 @@ if ($selectedId > 0 && $qrGroup) {
     }
 }
 
+$themeStyle = memorial_theme_style($memorial);
+
 if ($isGroupView): ?>
 <!doctype html>
 <html lang="en">
@@ -61,7 +98,7 @@ if ($isGroupView): ?>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
     <title>Family Memorials | AlaalaMo</title>
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-7') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-8') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial">
@@ -126,18 +163,6 @@ if ($milestones) {
     }
 }
 
-$themePrimary = preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($memorial['theme_primary'] ?? ''))
-    ? strtolower((string) $memorial['theme_primary'])
-    : '#214c63';
-$themeSecondary = preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($memorial['theme_secondary'] ?? ''))
-    ? strtolower((string) $memorial['theme_secondary'])
-    : '#eadcc8';
-$themeTertiary = preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($memorial['theme_tertiary'] ?? ''))
-    ? strtolower((string) $memorial['theme_tertiary'])
-    : '#fbfaf7';
-$themeStyle = '--memorial-primary: ' . htmlspecialchars($themePrimary, ENT_QUOTES, 'UTF-8')
-    . '; --memorial-secondary: ' . htmlspecialchars($themeSecondary, ENT_QUOTES, 'UTF-8')
-    . '; --memorial-tertiary: ' . htmlspecialchars($themeTertiary, ENT_QUOTES, 'UTF-8') . ';';
 ?>
 <!doctype html>
 <html lang="en">
@@ -147,9 +172,9 @@ $themeStyle = '--memorial-primary: ' . htmlspecialchars($themePrimary, ENT_QUOTE
     <meta name="robots" content="noindex,nofollow">
     <title><?= htmlspecialchars($memorial['loved_one_name'], ENT_QUOTES, 'UTF-8') ?> | AlaalaMo Memorial</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-7') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260513-8') ?>">
   </head>
-  <body class="memorial-preview-page">
+  <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
       <section class="mobile-memorial-cover d-flex align-items-end">
         <?php if ($images): ?>
