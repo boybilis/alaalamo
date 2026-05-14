@@ -1194,6 +1194,7 @@ $messageFlash = get_flash();
       let activeModalImage = 0;
       let preferredNarrationVoice = null;
       let narrationIsActive = false;
+      let storyWakeLock = null;
 
       if (profileCoverImages.length > 1) {
         let profileIndex = 0;
@@ -1279,11 +1280,39 @@ $messageFlash = get_flash();
         sendYouTubeCommand('setVolume', [volume]);
       }
 
+      async function requestStoryWakeLock() {
+        if (!('wakeLock' in navigator)) {
+          return;
+        }
+
+        try {
+          storyWakeLock = await navigator.wakeLock.request('screen');
+          storyWakeLock.addEventListener('release', () => {
+            storyWakeLock = null;
+          });
+        } catch (error) {
+          storyWakeLock = null;
+        }
+      }
+
+      async function releaseStoryWakeLock() {
+        if (!storyWakeLock) {
+          return;
+        }
+
+        try {
+          await storyWakeLock.release();
+        } catch (error) {
+          storyWakeLock = null;
+        }
+      }
+
       function stopNarration() {
         window.speechSynthesis?.cancel();
         clearInterval(slideTimer);
         clearInterval(readAlongTimer);
         clearTimeout(storyAdvanceTimer);
+        releaseStoryWakeLock();
         if (narrationIsActive) {
           setBackgroundMusicVolume(100);
         }
@@ -1487,6 +1516,7 @@ $messageFlash = get_flash();
 
       playButton?.addEventListener('click', () => {
         stopNarration();
+        requestStoryWakeLock();
         narrationIsActive = 'speechSynthesis' in window;
 
         if (narrationIsActive) {
@@ -1634,6 +1664,11 @@ $messageFlash = get_flash();
           window.history.replaceState({}, '', cleanPhotoUrl.pathname + cleanPhotoUrl.search + '#shared-photos');
         }
       <?php endif; ?>
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && modal?.classList.contains('is-open')) {
+          requestStoryWakeLock();
+        }
+      });
       window.addEventListener('beforeunload', stopNarration);
     </script>
   </body>
