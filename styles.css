@@ -1635,6 +1635,20 @@ a.memorial-resting-place:hover {
   color: var(--memorial-secondary-text);
 }
 
+.memorial-hero-actions .btn-outline-light {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--memorial-primary-text);
+  color: var(--memorial-primary-text);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+}
+
+.memorial-hero-actions .btn-outline-light:hover,
+.memorial-hero-actions .btn-outline-light:focus {
+  background: var(--memorial-primary-text);
+  border-color: var(--memorial-primary-text);
+  color: var(--memorial-primary);
+}
+
 .mobile-memorial-section {
   padding: 22px 18px;
   border-bottom: 1px solid rgba(31, 41, 51, 0.12);
