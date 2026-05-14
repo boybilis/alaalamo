@@ -1293,7 +1293,6 @@ $messageFlash = get_flash();
           favoriteSongEmbed.src = favoriteSongEmbed.dataset.songSrc || '';
         }
         favoriteSongSection?.removeAttribute('hidden');
-        favoriteSongSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
 
       function closeImageLightbox() {
