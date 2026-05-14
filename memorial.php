@@ -1457,7 +1457,7 @@ $messageFlash = get_flash();
         if (modalTitle) modalTitle.textContent = title;
         const narrationWords = renderNarrationWords(text);
         const estimatedWords = text.trim().split(/\s+/).filter(Boolean).length || 50;
-        const storyDuration = Math.max(9000, Math.min(18000, estimatedWords * 300));
+        const storyDuration = Math.max(12000, Math.min(26000, estimatedWords * 430));
         startReadAlong(narrationWords, storyDuration);
         runSlideshow(images, text);
 
