@@ -631,11 +631,12 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-54') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
-      <section class="mobile-memorial-header">
+      <section class="mobile-memorial-header" data-aos="fade-up">
         <a class="mobile-memorial-brand" href="https://alaalamo.site" target="_blank" rel="noopener" aria-label="AlaalaMo home">
           <span class="brand-mark" aria-hidden="true">A</span>
           <span>AlaalaMo</span>
@@ -644,7 +645,7 @@ if ($isGroupView): ?>
         <h1>Memorials in this QR</h1>
         <p>Select a loved one to view their memorial page.</p>
       </section>
-      <section class="mobile-memorial-section">
+      <section class="mobile-memorial-section" data-aos="fade-up" data-aos-delay="80">
         <div class="memorial-card-list">
           <?php foreach ($memorials as $item): ?>
             <?php
@@ -687,12 +688,21 @@ if ($isGroupView): ?>
           <?php endforeach; ?>
         </div>
       </section>
-      <footer class="mobile-memorial-footer">
+      <footer class="mobile-memorial-footer" data-aos="fade-up" data-aos-delay="120">
         <span>All Rights Reserved @ 2026</span>
         <a href="https://alaalamo.site" target="_blank" rel="noopener">AlaalaMo</a>
         <span>Memories made easier to revisit.</span>
       </footer>
     </main>
+    <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+    <script>
+      window.AOS?.init({
+        duration: 700,
+        easing: 'ease-out-cubic',
+        once: true,
+        offset: 42
+      });
+    </script>
   </body>
 </html>
 <?php exit; endif;
@@ -759,11 +769,12 @@ $messageFlash = get_flash();
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-54') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
-      <section class="mobile-memorial-cover d-flex align-items-end">
+      <section class="mobile-memorial-cover d-flex align-items-end" data-aos="fade">
         <?php if ($heroImages): ?>
           <div class="profile-cover-slideshow" aria-hidden="true">
             <?php foreach ($heroImages as $imageIndex => $image): ?>
@@ -827,7 +838,7 @@ $messageFlash = get_flash();
       </section>
 
       <?php if (!empty($memorial['short_description'])): ?>
-        <section class="mobile-memorial-section">
+        <section class="mobile-memorial-section" data-aos="fade-up">
           <h2><i class="fa-solid fa-book-open section-title-icon" aria-hidden="true"></i>About</h2>
           <article class="memorial-info-card">
             <div class="memorial-info-card-body">
@@ -838,7 +849,7 @@ $messageFlash = get_flash();
       <?php endif; ?>
 
       <?php if ($planLimits['life_story'] && !empty($memorial['autobiography_text'])): ?>
-        <section class="mobile-memorial-section life-story-player">
+        <section class="mobile-memorial-section life-story-player" data-aos="fade-up">
           <h2><i class="fa-solid fa-volume-high section-title-icon" aria-hidden="true"></i>Life Story</h2>
           <p><?= nl2br(htmlspecialchars($memorial['autobiography_text'], ENT_QUOTES, 'UTF-8')) ?></p>
           <p class="field-note">Narration uses the visitor device voice. No audio file is stored.</p>
@@ -846,7 +857,7 @@ $messageFlash = get_flash();
       <?php endif; ?>
 
       <?php if ($galleryImages || $communityPhotos): ?>
-        <section class="mobile-memorial-section" id="gallery">
+        <section class="mobile-memorial-section" id="gallery" data-aos="fade-up">
           <h2><i class="fa-solid fa-images section-title-icon" aria-hidden="true"></i>Gallery</h2>
           <?php if ($galleryImages): ?>
             <h3 class="gallery-subtitle">Photos from the family</h3>
@@ -890,7 +901,7 @@ $messageFlash = get_flash();
           <?php endif; ?>
         </section>
       <?php endif; ?>
-      <section class="mobile-memorial-section shared-photos-section" id="shared-photos">
+      <section class="mobile-memorial-section shared-photos-section" id="shared-photos" data-aos="fade-up">
         <div class="messages-love-head">
           <h2><i class="fa-solid fa-camera-retro section-title-icon" aria-hidden="true"></i>Shared Photos</h2>
           <button class="btn btn-light btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#photoShareModal">
@@ -906,7 +917,7 @@ $messageFlash = get_flash();
       </section>
 
       <?php if ($milestones): ?>
-        <section class="mobile-memorial-section milestone-stack-section">
+        <section class="mobile-memorial-section milestone-stack-section" data-aos="fade-up">
           <h2><i class="fa-solid fa-timeline section-title-icon" aria-hidden="true"></i>Life Milestones</h2>
           <div class="milestone-stack-track" data-milestone-stack>
             <?php foreach ($milestones as $milestoneIndex => $milestone): ?>
@@ -943,7 +954,7 @@ $messageFlash = get_flash();
           <p class="milestone-stack-hint">Swipe left or right to browse milestones.</p>
         </section>
       <?php endif; ?>
-      <section class="mobile-memorial-section" id="messages">
+      <section class="mobile-memorial-section" id="messages" data-aos="fade-up">
         <div class="messages-love-head">
           <h2><i class="fa-solid fa-heart section-title-icon" aria-hidden="true"></i>Messages of Love</h2>
           <button class="btn btn-light btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#messageLoveModal">
@@ -971,7 +982,7 @@ $messageFlash = get_flash();
         </div>
       </section>
       <?php if ($favoriteSongUrl !== ''): ?>
-        <section class="mobile-memorial-section favorite-song-section" id="favorite-song" data-favorite-song-section hidden>
+        <section class="mobile-memorial-section favorite-song-section" id="favorite-song" data-favorite-song-section data-aos="fade-up" hidden>
           <h2><i class="fa-solid fa-music section-title-icon" aria-hidden="true"></i>Favorite Song</h2>
           <?php if ($favoriteSongEmbed): ?>
             <iframe
@@ -991,7 +1002,7 @@ $messageFlash = get_flash();
           <?php endif; ?>
         </section>
       <?php endif; ?>
-      <footer class="mobile-memorial-footer">
+      <footer class="mobile-memorial-footer" data-aos="fade-up">
         <span>All Rights Reserved @ 2026</span>
         <a href="https://alaalamo.site" target="_blank" rel="noopener">AlaalaMo</a>
         <span>Memories made easier to revisit.</span>
@@ -1124,7 +1135,15 @@ $messageFlash = get_flash();
       </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
     <script>
+      window.AOS?.init({
+        duration: 700,
+        easing: 'ease-out-cubic',
+        once: true,
+        offset: 42
+      });
+
       const playButton = document.querySelector('.story-play-button');
       const profileCoverImages = Array.from(document.querySelectorAll('.profile-cover-slideshow img'));
       const milestones = Array.from(document.querySelectorAll('.preview-milestone'));
@@ -1354,6 +1373,7 @@ $messageFlash = get_flash();
           favoriteSongEmbed.src = favoriteSongEmbed.dataset.songSrc || '';
         }
         favoriteSongSection?.removeAttribute('hidden');
+        window.AOS?.refreshHard();
       });
 
       function closeImageLightbox() {
