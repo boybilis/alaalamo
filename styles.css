@@ -1927,6 +1927,33 @@ a.memorial-resting-place:hover {
   font-weight: 800;
 }
 
+.shared-photos-section {
+  border-bottom-color: color-mix(in srgb, var(--memorial-secondary-text) 18%, transparent);
+  background: var(--memorial-secondary);
+  color: var(--memorial-secondary-text);
+}
+
+.shared-photos-section h2,
+.shared-photos-section p,
+.shared-photos-section .field-note {
+  color: var(--memorial-secondary-text);
+}
+
+.shared-photos-section .field-note {
+  opacity: 0.84;
+}
+
+.shared-photos-section .section-title-icon,
+.shared-photos-section .btn {
+  background: var(--memorial-primary);
+  border-color: var(--memorial-primary);
+  color: var(--memorial-primary-text);
+}
+
+.shared-photos-section .section-title-icon {
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--memorial-secondary-text) 18%, transparent);
+}
+
 .messages-love-carousel {
   overflow: hidden;
 }
