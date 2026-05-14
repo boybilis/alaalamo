@@ -632,7 +632,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-55') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-57') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -770,7 +770,7 @@ $messageFlash = get_flash();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-55') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-57') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -1036,7 +1036,13 @@ $messageFlash = get_flash();
       <div class="image-lightbox-backdrop"></div>
       <section class="image-lightbox-panel" role="dialog" aria-modal="true" aria-label="Image preview">
         <button class="image-lightbox-close" type="button" aria-label="Close image preview">&times;</button>
+        <button class="image-lightbox-nav image-lightbox-prev" type="button" aria-label="Previous image" data-lightbox-prev>
+          <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+        </button>
         <img class="image-lightbox-img" src="" alt="">
+        <button class="image-lightbox-nav image-lightbox-next" type="button" aria-label="Next image" data-lightbox-next>
+          <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        </button>
         <div class="image-lightbox-copy" hidden>
           <p class="image-lightbox-caption"></p>
           <p class="image-lightbox-credit"></p>
@@ -1168,6 +1174,8 @@ $messageFlash = get_flash();
       const imageLightboxCaption = document.querySelector('.image-lightbox-caption');
       const imageLightboxCredit = document.querySelector('.image-lightbox-credit');
       const imageLightboxClose = document.querySelector('.image-lightbox-close');
+      const imageLightboxPrev = document.querySelector('[data-lightbox-prev]');
+      const imageLightboxNext = document.querySelector('[data-lightbox-next]');
       const lightboxImages = Array.from(document.querySelectorAll('[data-lightbox-src]'));
       const favoriteSongTrigger = document.querySelector('[data-favorite-song-trigger]');
       const favoriteSongSection = document.querySelector('[data-favorite-song-section]');
@@ -1178,6 +1186,7 @@ $messageFlash = get_flash();
       const milestoneNext = document.querySelector('[data-milestone-next]');
       let activeLightboxIndex = -1;
       let lightboxTouchStartX = 0;
+      let lightboxTransitionTimer = null;
       let slideTimer = null;
       let profileCoverTimer = null;
       let activeModalImage = 0;
@@ -1196,6 +1205,7 @@ $messageFlash = get_flash();
       if (milestoneStack) {
         const stackedMilestones = Array.from(milestoneStack.querySelectorAll('.preview-milestone'));
         let milestoneStackTimer = null;
+        let milestoneActiveCard = null;
 
         function syncMilestoneStack() {
           const stackCenter = milestoneStack.scrollLeft + (milestoneStack.clientWidth / 2);
@@ -1215,6 +1225,12 @@ $messageFlash = get_flash();
           stackedMilestones.forEach((card) => {
             card.classList.toggle('is-in-view', card === activeCard);
           });
+
+          if (milestoneActiveCard && milestoneActiveCard !== activeCard) {
+            milestoneSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+
+          milestoneActiveCard = activeCard;
         }
 
         function scrollMilestoneStack(direction) {
@@ -1411,6 +1427,8 @@ $messageFlash = get_flash();
       function closeImageLightbox() {
         imageLightbox?.classList.remove('is-open');
         imageLightbox?.setAttribute('aria-hidden', 'true');
+        window.clearTimeout(lightboxTransitionTimer);
+        imageLightboxImage?.classList.remove('is-exiting-left', 'is-exiting-right', 'is-entering-left', 'is-entering-right', 'is-zooming-in');
         if (imageLightboxImage) {
           imageLightboxImage.src = '';
           imageLightboxImage.alt = '';
@@ -1427,19 +1445,51 @@ $messageFlash = get_flash();
         activeLightboxIndex = -1;
       }
 
-      function showLightboxImage(index) {
-        if (!lightboxImages.length) return;
-        activeLightboxIndex = (index + lightboxImages.length) % lightboxImages.length;
-        const image = lightboxImages[activeLightboxIndex];
+      function setLightboxImageFromElement(image) {
         if (imageLightboxImage) {
           imageLightboxImage.src = image.dataset.lightboxSrc;
           imageLightboxImage.alt = image.dataset.lightboxAlt || image.alt || 'Memorial image';
         }
+
         const caption = image.dataset.lightboxCaption || '';
         const credit = image.dataset.lightboxCredit || '';
         if (imageLightboxCaption) imageLightboxCaption.textContent = caption;
         if (imageLightboxCredit) imageLightboxCredit.textContent = credit ? `Shared by ${credit}` : '';
         if (imageLightboxCopy) imageLightboxCopy.hidden = !caption && !credit;
+      }
+
+      function showLightboxImage(index, direction = 0) {
+        if (!lightboxImages.length) return;
+        const nextIndex = (index + lightboxImages.length) % lightboxImages.length;
+        const image = lightboxImages[nextIndex];
+
+        window.clearTimeout(lightboxTransitionTimer);
+
+        if (!direction || activeLightboxIndex === -1 || !imageLightboxImage?.src) {
+          activeLightboxIndex = nextIndex;
+          setLightboxImageFromElement(image);
+          imageLightboxImage?.classList.remove('is-exiting-left', 'is-exiting-right', 'is-entering-left', 'is-entering-right', 'is-zooming-in');
+          void imageLightboxImage?.offsetWidth;
+          imageLightboxImage?.classList.add('is-zooming-in');
+          lightboxTransitionTimer = window.setTimeout(() => {
+            imageLightboxImage?.classList.remove('is-zooming-in');
+          }, 380);
+          return;
+        }
+
+        const exitClass = direction > 0 ? 'is-exiting-left' : 'is-exiting-right';
+        const enterClass = direction > 0 ? 'is-entering-right' : 'is-entering-left';
+        imageLightboxImage.classList.remove('is-exiting-left', 'is-exiting-right', 'is-entering-left', 'is-entering-right', 'is-zooming-in');
+        imageLightboxImage.classList.add(exitClass);
+
+        lightboxTransitionTimer = window.setTimeout(() => {
+          activeLightboxIndex = nextIndex;
+          setLightboxImageFromElement(image);
+          imageLightboxImage.classList.remove(exitClass);
+          imageLightboxImage.classList.add(enterClass);
+          void imageLightboxImage.offsetWidth;
+          imageLightboxImage.classList.remove(enterClass);
+        }, 170);
       }
 
       document.addEventListener('click', (event) => {
@@ -1461,17 +1511,19 @@ $messageFlash = get_flash();
         const deltaX = endX - lightboxTouchStartX;
 
         if (Math.abs(deltaX) < 45 || lightboxImages.length < 2) return;
-        showLightboxImage(deltaX < 0 ? activeLightboxIndex + 1 : activeLightboxIndex - 1);
+        showLightboxImage(deltaX < 0 ? activeLightboxIndex + 1 : activeLightboxIndex - 1, deltaX < 0 ? 1 : -1);
       }, { passive: true });
       imageLightboxClose?.addEventListener('click', closeImageLightbox);
+      imageLightboxPrev?.addEventListener('click', () => showLightboxImage(activeLightboxIndex - 1, -1));
+      imageLightboxNext?.addEventListener('click', () => showLightboxImage(activeLightboxIndex + 1, 1));
       document.querySelector('.image-lightbox-backdrop')?.addEventListener('click', closeImageLightbox);
       document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
           closeImageLightbox();
         } else if (imageLightbox?.classList.contains('is-open') && event.key === 'ArrowLeft') {
-          showLightboxImage(activeLightboxIndex - 1);
+          showLightboxImage(activeLightboxIndex - 1, -1);
         } else if (imageLightbox?.classList.contains('is-open') && event.key === 'ArrowRight') {
-          showLightboxImage(activeLightboxIndex + 1);
+          showLightboxImage(activeLightboxIndex + 1, 1);
         }
       });
       <?php if (isset($_GET['verify_message'])): ?>
