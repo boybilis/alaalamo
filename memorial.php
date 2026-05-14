@@ -151,6 +151,7 @@ function youtube_embed_url(string $url): ?string
         : 'https://www.youtube.com/embed/videoseries';
     $embedQuery = [
         'autoplay' => '1',
+        'enablejsapi' => '1',
         'rel' => '0',
         'origin' => rtrim(app_base_url(), '/'),
     ];
@@ -1145,6 +1146,7 @@ $messageFlash = get_flash();
       let profileCoverTimer = null;
       let activeModalImage = 0;
       let preferredNarrationVoice = null;
+      let narrationIsActive = false;
 
       if (profileCoverImages.length > 1) {
         let profileIndex = 0;
@@ -1155,9 +1157,29 @@ $messageFlash = get_flash();
         }, 8200);
       }
 
+      function sendYouTubeCommand(command, args = []) {
+        if (!favoriteSongEmbed || !favoriteSongEmbed.src || !favoriteSongEmbed.src.includes('youtube.com/embed')) {
+          return;
+        }
+
+        favoriteSongEmbed.contentWindow?.postMessage(JSON.stringify({
+          event: 'command',
+          func: command,
+          args: args
+        }), 'https://www.youtube.com');
+      }
+
+      function setBackgroundMusicVolume(volume) {
+        sendYouTubeCommand('setVolume', [volume]);
+      }
+
       function stopNarration() {
         window.speechSynthesis?.cancel();
         clearInterval(slideTimer);
+        if (narrationIsActive) {
+          setBackgroundMusicVolume(100);
+        }
+        narrationIsActive = false;
         modal?.classList.remove('is-open');
         modal?.setAttribute('aria-hidden', 'true');
         document.querySelectorAll('.preview-milestone.is-playing').forEach((item) => {
@@ -1281,6 +1303,8 @@ $messageFlash = get_flash();
           return;
         }
         stopNarration();
+        narrationIsActive = true;
+        setBackgroundMusicVolume(18);
         speakMilestone(0);
       });
 
