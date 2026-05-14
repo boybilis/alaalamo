@@ -150,6 +150,7 @@ function youtube_embed_url(string $url): ?string
         ? 'https://www.youtube.com/embed/' . $videoId
         : 'https://www.youtube.com/embed/videoseries';
     $embedQuery = [
+        'autoplay' => '1',
         'rel' => '0',
         'origin' => rtrim(app_base_url(), '/'),
     ];
