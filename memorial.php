@@ -632,7 +632,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-57') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-58') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -770,7 +770,7 @@ $messageFlash = get_flash();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-57') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-58') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -1188,6 +1188,7 @@ $messageFlash = get_flash();
       let lightboxTouchStartX = 0;
       let lightboxTransitionTimer = null;
       let slideTimer = null;
+      let storyAdvanceTimer = null;
       let profileCoverTimer = null;
       let activeModalImage = 0;
       let preferredNarrationVoice = null;
@@ -1280,6 +1281,7 @@ $messageFlash = get_flash();
       function stopNarration() {
         window.speechSynthesis?.cancel();
         clearInterval(slideTimer);
+        clearTimeout(storyAdvanceTimer);
         if (narrationIsActive) {
           setBackgroundMusicVolume(100);
         }
@@ -1362,6 +1364,41 @@ $messageFlash = get_flash();
         window.speechSynthesis.onvoiceschanged = selectNarrationVoice;
       }
 
+      function renderNarrationWords(text) {
+        if (!modalText) {
+          return [];
+        }
+
+        const tokens = text.match(/\S+\s*/g) || [];
+        modalText.innerHTML = '';
+
+        return tokens.map((token, index) => {
+          const span = document.createElement('span');
+          span.className = 'story-word';
+          span.dataset.wordIndex = String(index);
+          span.textContent = token;
+          modalText.appendChild(span);
+          return {
+            span,
+            start: text.indexOf(token.trim(), index === 0 ? 0 : tokens.slice(0, index).join('').length),
+            end: tokens.slice(0, index + 1).join('').length
+          };
+        });
+      }
+
+      function markNarrationProgress(words, charIndex) {
+        let activeIndex = words.findIndex((word) => charIndex >= word.start && charIndex < word.end);
+
+        if (activeIndex === -1 && charIndex > 0) {
+          activeIndex = words.length - 1;
+        }
+
+        words.forEach((word, index) => {
+          word.span.classList.toggle('is-read', activeIndex > -1 && index < activeIndex);
+          word.span.classList.toggle('is-current', index === activeIndex);
+        });
+      }
+
       function speakMilestone(index) {
         if (index >= milestones.length) {
           stopNarration();
@@ -1389,26 +1426,39 @@ $messageFlash = get_flash();
         modal?.classList.add('is-open');
         modal?.setAttribute('aria-hidden', 'false');
         if (modalTitle) modalTitle.textContent = title;
-        if (modalText) modalText.textContent = text;
+        const narrationWords = renderNarrationWords(text);
         runSlideshow(images, text);
+
+        if (!('speechSynthesis' in window)) {
+          const estimatedWords = text.trim().split(/\s+/).filter(Boolean).length || 50;
+          const silentDuration = Math.max(9000, Math.min(18000, estimatedWords * 300));
+          clearTimeout(storyAdvanceTimer);
+          storyAdvanceTimer = window.setTimeout(() => speakMilestone(index + 1), silentDuration);
+          return;
+        }
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.voice = preferredNarrationVoice || selectNarrationVoice();
         utterance.rate = 0.92;
         utterance.pitch = 0.72;
         utterance.volume = 1;
+        utterance.onboundary = (event) => {
+          if (event.name === 'word' || event.charIndex > -1) {
+            markNarrationProgress(narrationWords, event.charIndex);
+          }
+        };
         utterance.onend = () => speakMilestone(index + 1);
         window.speechSynthesis.speak(utterance);
       }
 
       playButton?.addEventListener('click', () => {
-        if (!('speechSynthesis' in window)) {
-          alert('Narration is not supported on this browser.');
-          return;
-        }
         stopNarration();
-        narrationIsActive = true;
-        setBackgroundMusicVolume(18);
+        narrationIsActive = 'speechSynthesis' in window;
+
+        if (narrationIsActive) {
+          setBackgroundMusicVolume(18);
+        }
+
         speakMilestone(0);
       });
 

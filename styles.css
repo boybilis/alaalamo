@@ -2439,6 +2439,21 @@ a.memorial-resting-place:hover {
   line-height: 1.7;
 }
 
+.story-word {
+  color: currentColor;
+  transition: color 180ms ease, opacity 180ms ease;
+}
+
+.story-word.is-read {
+  color: color-mix(in srgb, var(--memorial-primary-text) 48%, #8f98a3);
+  opacity: 0.58;
+}
+
+.story-word.is-current {
+  color: var(--memorial-secondary);
+  opacity: 1;
+}
+
 .story-modal-step {
   color: var(--memorial-primary-text);
   opacity: 0.78;
