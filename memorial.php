@@ -631,7 +631,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-53') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-54') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -759,7 +759,7 @@ $messageFlash = get_flash();
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-53') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-54') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -906,38 +906,41 @@ $messageFlash = get_flash();
       </section>
 
       <?php if ($milestones): ?>
-        <section class="mobile-memorial-section">
+        <section class="mobile-memorial-section milestone-stack-section">
           <h2><i class="fa-solid fa-timeline section-title-icon" aria-hidden="true"></i>Life Milestones</h2>
-          <?php foreach ($milestones as $milestone): ?>
-            <?php $imagesForMilestone = $milestoneImages[(int) $milestone['id']] ?? []; ?>
-            <article
-              class="preview-milestone"
-              data-narration="<?= htmlspecialchars($milestone['ai_narration_text'] ?: $milestone['description'], ENT_QUOTES, 'UTF-8') ?>"
-              data-images="<?= htmlspecialchars(json_encode(array_column($imagesForMilestone, 'image_path'), JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8') ?>"
-            >
-              <header class="preview-milestone-head">
-                <span><?= htmlspecialchars($milestone['milestone_date'], ENT_QUOTES, 'UTF-8') ?></span>
-                <h3><?= htmlspecialchars($milestone['title'], ENT_QUOTES, 'UTF-8') ?></h3>
-              </header>
-              <div class="preview-milestone-body">
-                <p><?= nl2br(htmlspecialchars($milestone['ai_narration_text'] ?: $milestone['description'], ENT_QUOTES, 'UTF-8')) ?></p>
-              </div>
-              <?php if ($imagesForMilestone): ?>
-                <footer class="preview-milestone-footer">
-                  <div class="milestone-image-grid">
-                    <?php foreach ($imagesForMilestone as $image): ?>
-                      <img
-                        src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
-                        alt="Milestone photo"
-                        data-lightbox-src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
-                        data-lightbox-alt="Milestone photo"
-                      >
-                    <?php endforeach; ?>
-                  </div>
-                </footer>
-              <?php endif; ?>
-            </article>
-          <?php endforeach; ?>
+          <div class="milestone-stack-track" data-milestone-stack>
+            <?php foreach ($milestones as $milestoneIndex => $milestone): ?>
+              <?php $imagesForMilestone = $milestoneImages[(int) $milestone['id']] ?? []; ?>
+              <article
+                class="preview-milestone <?= $milestoneIndex === 0 ? 'is-in-view' : '' ?>"
+                data-narration="<?= htmlspecialchars($milestone['ai_narration_text'] ?: $milestone['description'], ENT_QUOTES, 'UTF-8') ?>"
+                data-images="<?= htmlspecialchars(json_encode(array_column($imagesForMilestone, 'image_path'), JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8') ?>"
+              >
+                <header class="preview-milestone-head">
+                  <span><?= htmlspecialchars($milestone['milestone_date'], ENT_QUOTES, 'UTF-8') ?></span>
+                  <h3><?= htmlspecialchars($milestone['title'], ENT_QUOTES, 'UTF-8') ?></h3>
+                </header>
+                <div class="preview-milestone-body">
+                  <p><?= nl2br(htmlspecialchars($milestone['ai_narration_text'] ?: $milestone['description'], ENT_QUOTES, 'UTF-8')) ?></p>
+                </div>
+                <?php if ($imagesForMilestone): ?>
+                  <footer class="preview-milestone-footer">
+                    <div class="milestone-image-grid">
+                      <?php foreach ($imagesForMilestone as $image): ?>
+                        <img
+                          src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
+                          alt="Milestone photo"
+                          data-lightbox-src="<?= htmlspecialchars($image['image_path'], ENT_QUOTES, 'UTF-8') ?>"
+                          data-lightbox-alt="Milestone photo"
+                        >
+                      <?php endforeach; ?>
+                    </div>
+                  </footer>
+                <?php endif; ?>
+              </article>
+            <?php endforeach; ?>
+          </div>
+          <p class="milestone-stack-hint">Swipe left or right to browse milestones.</p>
         </section>
       <?php endif; ?>
       <section class="mobile-memorial-section" id="messages">
@@ -1140,6 +1143,7 @@ $messageFlash = get_flash();
       const favoriteSongTrigger = document.querySelector('[data-favorite-song-trigger]');
       const favoriteSongSection = document.querySelector('[data-favorite-song-section]');
       const favoriteSongEmbed = document.querySelector('[data-song-src]');
+      const milestoneStack = document.querySelector('[data-milestone-stack]');
       let activeLightboxIndex = -1;
       let lightboxTouchStartX = 0;
       let slideTimer = null;
@@ -1155,6 +1159,39 @@ $messageFlash = get_flash();
           profileIndex = (profileIndex + 1) % profileCoverImages.length;
           profileCoverImages[profileIndex].classList.add('is-active');
         }, 8200);
+      }
+
+      if (milestoneStack) {
+        const stackedMilestones = Array.from(milestoneStack.querySelectorAll('.preview-milestone'));
+        let milestoneStackTimer = null;
+
+        function syncMilestoneStack() {
+          const stackCenter = milestoneStack.scrollLeft + (milestoneStack.clientWidth / 2);
+          let activeCard = stackedMilestones[0] || null;
+          let activeDistance = Number.POSITIVE_INFINITY;
+
+          stackedMilestones.forEach((card) => {
+            const cardCenter = card.offsetLeft + (card.offsetWidth / 2);
+            const distance = Math.abs(stackCenter - cardCenter);
+
+            if (distance < activeDistance) {
+              activeDistance = distance;
+              activeCard = card;
+            }
+          });
+
+          stackedMilestones.forEach((card) => {
+            card.classList.toggle('is-in-view', card === activeCard);
+          });
+        }
+
+        milestoneStack.addEventListener('scroll', () => {
+          window.clearTimeout(milestoneStackTimer);
+          milestoneStackTimer = window.setTimeout(syncMilestoneStack, 60);
+        }, { passive: true });
+
+        window.addEventListener('resize', syncMilestoneStack);
+        syncMilestoneStack();
       }
 
       function sendYouTubeCommand(command, args = []) {
