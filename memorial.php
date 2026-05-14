@@ -90,6 +90,28 @@ function memorial_coordinate_url(array $memorial): ?string
         . rawurlencode(number_format($latitude, 7, '.', '') . ',' . number_format($longitude, 7, '.', ''));
 }
 
+function spotify_embed_url(string $url): ?string
+{
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        return null;
+    }
+
+    $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+
+    if (!str_ends_with($host, 'spotify.com')) {
+        return null;
+    }
+
+    $pathParts = array_values(array_filter(explode('/', trim((string) parse_url($url, PHP_URL_PATH), '/'))));
+    $allowedTypes = ['track', 'album', 'playlist', 'episode', 'show'];
+
+    if (count($pathParts) < 2 || !in_array($pathParts[0], $allowedTypes, true)) {
+        return null;
+    }
+
+    return 'https://open.spotify.com/embed/' . rawurlencode($pathParts[0]) . '/' . rawurlencode($pathParts[1]);
+}
+
 function qr_plan_type(?array $qrGroup): string
 {
     return (($qrGroup['plan_type'] ?? 'regular') === 'premium') ? 'premium' : 'regular';
@@ -299,6 +321,8 @@ $favoriteSongUrl = trim((string) ($memorial['favorite_song_url'] ?? ''));
 if ($favoriteSongUrl !== '' && !filter_var($favoriteSongUrl, FILTER_VALIDATE_URL)) {
     $favoriteSongUrl = '';
 }
+
+$favoriteSongEmbedUrl = $favoriteSongUrl !== '' ? spotify_embed_url($favoriteSongUrl) : null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isGroupView) {
     $formAction = clean_input($_POST['form_action'] ?? '');
@@ -543,7 +567,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-50') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-51') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -671,7 +695,7 @@ $messageFlash = get_flash();
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-50') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-51') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -726,7 +750,7 @@ $messageFlash = get_flash();
                 <?php endif; ?>
                 <?php if ($favoriteSongUrl !== ''): ?>
                   <div class="<?= ($galleryImages || $communityPhotos) ? 'col-6' : 'col-12' ?>">
-                    <a class="btn btn-outline-light btn-lg w-100" href="<?= htmlspecialchars($favoriteSongUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">
+                    <a class="btn btn-outline-light btn-lg w-100" href="#favorite-song" data-favorite-song-trigger>
                       <i class="fa-solid fa-music" aria-hidden="true"></i>
                       <span>Play Song</span>
                     </a>
@@ -879,6 +903,25 @@ $messageFlash = get_flash();
           <?php endif; ?>
         </div>
       </section>
+      <?php if ($favoriteSongUrl !== ''): ?>
+        <section class="mobile-memorial-section favorite-song-section" id="favorite-song" data-favorite-song-section hidden>
+          <h2><i class="fa-solid fa-music section-title-icon" aria-hidden="true"></i>Favorite Song</h2>
+          <?php if ($favoriteSongEmbedUrl): ?>
+            <iframe
+              class="favorite-song-embed"
+              src="<?= htmlspecialchars($favoriteSongEmbedUrl, ENT_QUOTES, 'UTF-8') ?>"
+              title="Favorite song Spotify player"
+              loading="lazy"
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            ></iframe>
+          <?php else: ?>
+            <a class="favorite-song-link" href="<?= htmlspecialchars($favoriteSongUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">
+              <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+              Open favorite song
+            </a>
+          <?php endif; ?>
+        </section>
+      <?php endif; ?>
       <footer class="mobile-memorial-footer">
         <span>All Rights Reserved @ 2026</span>
         <a href="https://alaalamo.site" target="_blank" rel="noopener">AlaalaMo</a>
@@ -1028,6 +1071,8 @@ $messageFlash = get_flash();
       const imageLightboxCredit = document.querySelector('.image-lightbox-credit');
       const imageLightboxClose = document.querySelector('.image-lightbox-close');
       const lightboxImages = Array.from(document.querySelectorAll('[data-lightbox-src]'));
+      const favoriteSongTrigger = document.querySelector('[data-favorite-song-trigger]');
+      const favoriteSongSection = document.querySelector('[data-favorite-song-section]');
       let activeLightboxIndex = -1;
       let lightboxTouchStartX = 0;
       let slideTimer = null;
@@ -1175,6 +1220,13 @@ $messageFlash = get_flash();
 
       modalClose?.addEventListener('click', stopNarration);
       document.querySelector('.story-modal-backdrop')?.addEventListener('click', stopNarration);
+
+      favoriteSongTrigger?.addEventListener('click', (event) => {
+        event.preventDefault();
+        favoriteSongSection?.removeAttribute('hidden');
+        favoriteSongSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+
       function closeImageLightbox() {
         imageLightbox?.classList.remove('is-open');
         imageLightbox?.setAttribute('aria-hidden', 'true');
