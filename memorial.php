@@ -972,7 +972,7 @@ $messageFlash = get_flash();
           <?php if ($favoriteSongEmbed): ?>
             <iframe
               class="favorite-song-embed <?= $favoriteSongEmbed['type'] === 'YouTube' ? 'favorite-song-embed-youtube' : '' ?>"
-              src="<?= htmlspecialchars($favoriteSongEmbed['url'], ENT_QUOTES, 'UTF-8') ?>"
+              data-song-src="<?= htmlspecialchars($favoriteSongEmbed['url'], ENT_QUOTES, 'UTF-8') ?>"
               title="Favorite song <?= htmlspecialchars($favoriteSongEmbed['type'], ENT_QUOTES, 'UTF-8') ?> player"
               frameborder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -1138,6 +1138,7 @@ $messageFlash = get_flash();
       const lightboxImages = Array.from(document.querySelectorAll('[data-lightbox-src]'));
       const favoriteSongTrigger = document.querySelector('[data-favorite-song-trigger]');
       const favoriteSongSection = document.querySelector('[data-favorite-song-section]');
+      const favoriteSongEmbed = document.querySelector('[data-song-src]');
       let activeLightboxIndex = -1;
       let lightboxTouchStartX = 0;
       let slideTimer = null;
@@ -1288,6 +1289,9 @@ $messageFlash = get_flash();
 
       favoriteSongTrigger?.addEventListener('click', (event) => {
         event.preventDefault();
+        if (favoriteSongEmbed && !favoriteSongEmbed.src) {
+          favoriteSongEmbed.src = favoriteSongEmbed.dataset.songSrc || '';
+        }
         favoriteSongSection?.removeAttribute('hidden');
         favoriteSongSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
