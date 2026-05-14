@@ -176,7 +176,7 @@ h1 {
   font-weight: 600;
   line-height: 1.5;
 }
-.button-primary, .button-secondary {
+.button-primary, .button-secondary, .button-success {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -190,8 +190,9 @@ h1 {
 }
 .button-primary { background: var(--beige); color: var(--accent-dark); box-shadow: var(--shadow); }
 .button-secondary { border: 1px solid rgba(234, 220, 200, 0.7); background: rgba(234, 220, 200, 0.18); color: var(--white); backdrop-filter: blur(14px); }
-.button-primary:hover, .button-secondary:hover { transform: translateY(-2px); }
-.button-primary:focus-visible, .button-secondary:focus-visible, .nav-links a:focus-visible, .brand:focus-visible { outline: 3px solid var(--gold); outline-offset: 4px; }
+.button-success { background: #1f6848; color: var(--white); box-shadow: 0 18px 40px rgba(31, 104, 72, 0.24); }
+.button-primary:hover, .button-secondary:hover, .button-success:hover { transform: translateY(-2px); }
+.button-primary:focus-visible, .button-secondary:focus-visible, .button-success:focus-visible, .nav-links a:focus-visible, .brand:focus-visible { outline: 3px solid var(--gold); outline-offset: 4px; }
 
 .what-section {
   position: relative;
@@ -1215,6 +1216,23 @@ h2 {
   font-weight: 700;
 }
 
+.upload-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: end;
+}
+
+.upload-action-row label {
+  min-width: 0;
+}
+
+.upload-inline-button {
+  width: 100%;
+  min-height: 48px;
+  align-self: end;
+}
+
 .milestone-ajax-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1223,9 +1241,9 @@ h2 {
 }
 
 .memorial-form .milestone-upload-button,
-.memorial-form .milestone-save-button {
+.memorial-form .milestone-save-button,
+.memorial-form .upload-inline-button {
   justify-self: start;
-  width: auto;
   min-height: 44px;
   border: 1px solid rgba(33, 76, 99, 0.18);
   background: var(--white);
@@ -2210,7 +2228,7 @@ a.memorial-resting-place:hover {
   .hero-content { text-align: left; }
   .hero-actions { justify-content: flex-start; }
   .privacy-note { margin-left: 0; }
-  .button-primary, .button-secondary { width: 100%; }
+  .button-primary, .button-secondary, .button-success { width: 100%; }
   .what-section { padding: 68px 12px 76px; }
   .what-content { width: 100%; }
   .intro-strip { grid-template-columns: 1fr; width: 100%; margin-top: 32px; }
@@ -2246,6 +2264,7 @@ a.memorial-resting-place:hover {
   .dashboard-panel,
   .qr-panel,
   .memorial-form { padding: 20px; }
+  .upload-action-row { grid-template-columns: 1fr; }
   .admin-message-card { grid-template-columns: 1fr; }
   .admin-message-actions { justify-items: start; }
 }

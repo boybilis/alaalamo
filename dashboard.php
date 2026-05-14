@@ -266,9 +266,24 @@ function upload_to_cloudinary(string $relativePath, string $folder): ?array
     }
 
     return [
-        'secure_url' => (string) $data['secure_url'],
+        'secure_url' => cloudinary_optimized_image_url((string) $data['secure_url']),
         'public_id' => (string) ($data['public_id'] ?? ''),
     ];
+}
+
+function cloudinary_optimized_image_url(string $secureUrl): string
+{
+    if ($secureUrl === '') {
+        return $secureUrl;
+    }
+
+    $transformation = 'f_auto,q_auto,c_limit,w_1600';
+
+    if (str_contains($secureUrl, '/upload/' . $transformation . '/')) {
+        return $secureUrl;
+    }
+
+    return str_replace('/upload/', '/upload/' . $transformation . '/', $secureUrl);
 }
 
 function load_uploaded_image_resource(string $path, string $mimeType)
@@ -991,6 +1006,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to('/dashboard.php?memorial_id=' . (int) $targetMilestone['memorial_id']);
     }
 
+    if ($formAction === 'upload_profile_images') {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
+        $stmt = $pdo->prepare(
+            'SELECT * FROM memorials WHERE id = ? AND user_id = ? AND qr_group_id = ? LIMIT 1'
+        );
+        $stmt->execute([$memorialIdInput, (int) $user['id'], (int) $qrGroup['id']]);
+        $targetMemorial = $stmt->fetch();
+
+        if (!$targetMemorial) {
+            json_response(['ok' => false, 'message' => 'Save the memorial details first before uploading profile photos.'], 422);
+        }
+
+        $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM memorial_images WHERE memorial_id = ? AND image_type = "profile"');
+        $existingCountStmt->execute([(int) $targetMemorial['id']]);
+        $existingCount = (int) $existingCountStmt->fetchColumn();
+        $remainingSlots = max(0, $planLimits['profile_images'] - $existingCount);
+
+        if ($remainingSlots === 0) {
+            json_response(['ok' => false, 'message' => 'This memorial already has the maximum number of profile photos.'], 422);
+        }
+
+        $uploaded = 0;
+        $uploadedHtml = [];
+        $uploadErrorMessage = 'No valid profile photos were uploaded.';
+
+        if (!empty($_FILES['profile_images']['name'])) {
+            $imageCount = min(count($_FILES['profile_images']['name']), $remainingSlots);
+
+            for ($i = 0; $i < $imageCount; $i++) {
+                $uploadFile = uploaded_file_at($_FILES['profile_images'], $i);
+
+                if (($uploadFile['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                    $uploadErrorMessage = upload_error_message((int) $uploadFile['error']);
+                    continue;
+                }
+
+                $path = store_mobile_optimized_image(
+                    $uploadFile,
+                    'users/' . (int) $user['id'] . '/memorials/' . (int) $targetMemorial['id'] . '/profile'
+                );
+
+                if ($path) {
+                    $pdo->prepare('INSERT INTO memorial_images (memorial_id, image_type, image_path) VALUES (?, "profile", ?)')
+                        ->execute([(int) $targetMemorial['id'], $path]);
+                    $uploadedHtml[] = image_preview_html([
+                        'id' => (int) $pdo->lastInsertId(),
+                        'image_path' => $path,
+                    ], 'profile');
+                    $uploaded++;
+                } else {
+                    $uploadErrorMessage = 'The profile photo could not be processed. Try a JPG photo under 3MB.';
+                }
+
+                unset($uploadFile, $path);
+
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            }
+        }
+
+        json_response([
+            'ok' => $uploaded > 0,
+            'message' => $uploaded > 0 ? 'Profile photos uploaded.' : $uploadErrorMessage,
+            'html' => implode('', $uploadedHtml),
+            'count' => $existingCount + $uploaded,
+            'limit' => $planLimits['profile_images'],
+        ], $uploaded > 0 ? 200 : 422);
+    }
+
     $lovedOneName = clean_input($_POST['loved_one_name'] ?? '');
     $birthDate = clean_input($_POST['birth_date'] ?? '');
     $deathDate = clean_input($_POST['death_date'] ?? '');
@@ -1067,23 +1155,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $themeTertiary,
             ]);
             $memorialId = (int) $pdo->lastInsertId();
-        }
-
-        if (!empty($_FILES['profile_images']['name'])) {
-            $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM memorial_images WHERE memorial_id = ? AND image_type = "profile"');
-            $existingCountStmt->execute([$memorialId]);
-            $existingCount = (int) $existingCountStmt->fetchColumn();
-            $remainingSlots = max(0, $planLimits['profile_images'] - $existingCount);
-            $profileUploadCount = min(count($_FILES['profile_images']['name']), $remainingSlots);
-
-            for ($i = 0; $i < $profileUploadCount; $i++) {
-                $path = store_mobile_optimized_image(uploaded_file_at($_FILES['profile_images'], $i), 'users/' . (int) $user['id'] . '/memorials/' . $memorialId . '/profile');
-
-                if ($path) {
-                    $pdo->prepare('INSERT INTO memorial_images (memorial_id, image_type, image_path) VALUES (?, "profile", ?)')
-                        ->execute([$memorialId, $path]);
-                }
-            }
         }
 
         if (!empty($_FILES['gallery_images']['name'])) {
@@ -1262,7 +1333,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-45') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-46') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
@@ -1394,12 +1465,17 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
               Short description
               <textarea name="short_description" rows="4" placeholder="A gentle introduction to who they were."><?= htmlspecialchars($memorial['short_description'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
             </label>
-            <label class="form-full">
-              Profile photos
-              <input type="file" name="profile_images[]" accept="image/jpeg,image/png,image/webp" multiple>
-              <span class="field-note"><?= count($profileImages) ?> of <?= $planLimits['profile_images'] ?> profile photos used. Upload JPG, PNG, or WebP photos under 3MB.</span>
-            </label>
-            <div class="image-preview-list form-full">
+            <div class="upload-action-row form-full">
+              <label>
+                Profile photos
+                <input type="file" name="profile_images[]" data-profile-images accept="image/jpeg,image/png,image/webp" multiple <?= $memorial ? '' : 'disabled' ?>>
+                <span class="field-note" data-profile-note>
+                  <?= $memorial ? count($profileImages) . ' of ' . $planLimits['profile_images'] . ' profile photos used. Upload JPG, PNG, or WebP photos under 3MB.' : 'Save the memorial details first, then upload profile photos.' ?>
+                </span>
+              </label>
+              <button class="button-secondary upload-inline-button" type="button" data-upload-profile <?= $memorial ? '' : 'disabled' ?>>Upload Profile Photos</button>
+            </div>
+            <div class="image-preview-list form-full" data-profile-preview>
               <?php if ($profileImages): ?>
                 <?php foreach ($profileImages as $image): ?>
                   <div class="image-preview-item">
@@ -1411,6 +1487,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
                 <p>No profile photos yet.</p>
               <?php endif; ?>
             </div>
+            <span class="milestone-ajax-status form-full" data-profile-status></span>
             <div class="theme-picker form-full">
               <div>
                 <h3>Memorial color theme</h3>
@@ -1432,7 +1509,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
                 <span class="field-note">Page background</span>
               </label>
             </div>
-            <button class="button-primary form-submit" type="submit">Save Memorial Details</button>
+            <button class="button-success form-submit" type="submit">Save Memorial Details</button>
           </div>
         </section>
 
@@ -1477,16 +1554,19 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
                     </button>
                   </div>
                 <?php endif; ?>
-                <label class="form-full">
-                  Milestone images
-                  <?php if ($milestone): ?>
-                    <input type="file" name="milestone_images[]" data-milestone-images accept="image/jpeg,image/png,image/webp" multiple>
-                    <span class="field-note">Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. Upload JPG, PNG, or WebP photos under 3MB.</span>
-                  <?php else: ?>
-                    <input type="file" name="milestone_images[]" data-milestone-images accept="image/jpeg,image/png,image/webp" multiple disabled>
-                    <span class="field-note">Save this milestone first, then upload images for it.</span>
-                  <?php endif; ?>
-                </label>
+                <div class="upload-action-row form-full">
+                  <label>
+                    Milestone images
+                    <?php if ($milestone): ?>
+                      <input type="file" name="milestone_images[]" data-milestone-images accept="image/jpeg,image/png,image/webp" multiple>
+                      <span class="field-note">Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. Upload JPG, PNG, or WebP photos under 3MB.</span>
+                    <?php else: ?>
+                      <input type="file" name="milestone_images[]" data-milestone-images accept="image/jpeg,image/png,image/webp" multiple disabled>
+                      <span class="field-note">Save this milestone first, then upload images for it.</span>
+                    <?php endif; ?>
+                  </label>
+                  <button class="button-secondary milestone-upload-button upload-inline-button" type="button" data-upload-milestone <?= $milestone ? '' : 'disabled' ?>>Upload Images for This Milestone</button>
+                </div>
                 <div class="image-preview-list form-full" data-milestone-preview>
                   <?php if ($imagesForMilestone): ?>
                     <?php foreach ($imagesForMilestone as $image): ?>
@@ -1501,7 +1581,6 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
                 </div>
                 <div class="milestone-ajax-actions form-full">
                   <button class="button-secondary milestone-save-button" type="button" data-save-milestone>Save This Milestone</button>
-                  <button class="button-secondary milestone-upload-button" type="button" data-upload-milestone <?= $milestone ? '' : 'disabled' ?>>Upload Images for This Milestone</button>
                   <button class="image-delete-link milestone-delete-button" type="button" data-delete-milestone <?= $milestone ? '' : 'disabled' ?>>Delete This Milestone</button>
                   <span class="milestone-ajax-status" data-milestone-status></span>
                 </div>
@@ -1652,9 +1731,14 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
     <script>
       $(function () {
         const memorialId = <?= (int) ($memorial['id'] ?? 0) ?>;
+        const profileImageLimit = <?= (int) $planLimits['profile_images'] ?>;
 
         function setStatus($box, message, type) {
           const $status = $box.find('[data-milestone-status]');
+          $status.removeClass('is-success is-error').addClass(type === 'error' ? 'is-error' : 'is-success').text(message);
+        }
+
+        function setInlineStatus($status, message, type) {
           $status.removeClass('is-success is-error').addClass(type === 'error' ? 'is-error' : 'is-success').text(message);
         }
 
@@ -1677,16 +1761,17 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
           return fallback;
         }
 
-        function validateImageFiles(files, maxFiles) {
+        function validateImageFiles(files, maxFiles, label) {
           const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
           const maxBytes = 3 * 1024 * 1024;
+          const imageLabel = label || 'this milestone';
 
           if (!files.length) {
             return 'Choose at least one image first.';
           }
 
           if (files.length > maxFiles) {
-            return 'You can upload up to ' + maxFiles + ' image' + (maxFiles === 1 ? '' : 's') + ' at a time for this milestone.';
+            return 'You can upload up to ' + maxFiles + ' image' + (maxFiles === 1 ? '' : 's') + ' at a time for ' + imageLabel + '.';
           }
 
           for (const file of files) {
@@ -1892,6 +1977,64 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
           }).fail(function (xhr) {
             $aiStatus.removeClass('is-success').addClass('is-error').text(ajaxErrorMessage(xhr, 'Enhanced biography could not be saved.'));
             $aiSaveButton.prop('disabled', false);
+          });
+        });
+
+        $('[data-upload-profile]').on('click', function () {
+          const $button = $(this);
+          const input = $('[data-profile-images]')[0];
+          const files = Array.from(input.files || []);
+          const $preview = $('[data-profile-preview]');
+          const $status = $('[data-profile-status]');
+          const $note = $('[data-profile-note]');
+
+          if (!memorialId) {
+            setInlineStatus($status, 'Save the memorial details first before uploading profile photos.', 'error');
+            return;
+          }
+
+          const validationMessage = validateImageFiles(files, profileImageLimit, 'profile photos');
+
+          if (validationMessage) {
+            setInlineStatus($status, validationMessage, 'error');
+            return;
+          }
+
+          $button.prop('disabled', true);
+          setInlineStatus($status, 'Uploading profile photos...', 'success');
+
+          const formData = new FormData();
+          formData.append('ajax', '1');
+          formData.append('form_action', 'upload_profile_images');
+          formData.append('memorial_id', memorialId);
+
+          files.forEach(function (file) {
+            formData.append('profile_images[]', file);
+          });
+
+          $.ajax({
+            url: 'dashboard.php',
+            method: 'POST',
+            dataType: 'json',
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 90000
+          }).done(function (response) {
+            $preview.find('p').remove();
+            $preview.append(response.html || '');
+
+            if (response.count !== undefined && response.limit !== undefined) {
+              $note.text(response.count + ' of ' + response.limit + ' profile photos used. Upload JPG, PNG, or WebP photos under 3MB.');
+            }
+
+            $(input).val('');
+            setInlineStatus($status, response.message || 'Profile photos uploaded.', 'success');
+          }).fail(function (xhr, textStatus) {
+            const timeoutMessage = 'Upload timed out. Try uploading one smaller JPG photo.';
+            setInlineStatus($status, textStatus === 'timeout' ? timeoutMessage : ajaxErrorMessage(xhr, 'Profile photos could not be uploaded. Try JPG photos under 3MB.'), 'error');
+          }).always(function () {
+            $button.prop('disabled', false);
           });
         });
 

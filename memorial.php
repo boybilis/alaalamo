@@ -107,6 +107,21 @@ function qr_plan_limits(?array $qrGroup): array
     ];
 }
 
+function cloudinary_optimized_image_url(string $imageUrl): string
+{
+    if ($imageUrl === '' || !str_contains($imageUrl, 'res.cloudinary.com') || !str_contains($imageUrl, '/upload/')) {
+        return $imageUrl;
+    }
+
+    $transformation = 'f_auto,q_auto,c_limit,w_1600';
+
+    if (str_contains($imageUrl, '/upload/' . $transformation . '/')) {
+        return $imageUrl;
+    }
+
+    return str_replace('/upload/', '/upload/' . $transformation . '/', $imageUrl);
+}
+
 function send_memorial_message_otp(string $email, string $otp, string $lovedOneName): bool
 {
     $autoloadPath = __DIR__ . '/vendor/autoload.php';
@@ -745,13 +760,14 @@ $messageFlash = get_flash();
             <h3 class="gallery-subtitle">Photos shared by friends</h3>
             <div class="preview-gallery row g-2">
               <?php foreach ($communityPhotos as $image): ?>
+                <?php $sharedImageUrl = cloudinary_optimized_image_url((string) $image['image_url']); ?>
                 <div class="col-6">
                   <figure class="community-photo-card">
                     <img
                       class="img-fluid"
-                      src="<?= htmlspecialchars($image['image_url'], ENT_QUOTES, 'UTF-8') ?>"
+                      src="<?= htmlspecialchars($sharedImageUrl, ENT_QUOTES, 'UTF-8') ?>"
                       alt="Shared memorial photo"
-                      data-lightbox-src="<?= htmlspecialchars($image['image_url'], ENT_QUOTES, 'UTF-8') ?>"
+                      data-lightbox-src="<?= htmlspecialchars($sharedImageUrl, ENT_QUOTES, 'UTF-8') ?>"
                       data-lightbox-alt="Shared memorial photo"
                       data-lightbox-caption="<?= htmlspecialchars((string) ($image['caption'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                       data-lightbox-credit="<?= htmlspecialchars((string) ($image['sender_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
