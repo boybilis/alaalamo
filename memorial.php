@@ -787,29 +787,29 @@ $messageFlash = get_flash();
           </div>
         <?php endif; ?>
         <div class="mobile-memorial-cover-content w-100">
-          <p class="section-eyebrow">In loving memory</p>
-          <h1><?= htmlspecialchars($memorial['loved_one_name'], ENT_QUOTES, 'UTF-8') ?></h1>
-          <p class="memorial-dates">
+          <p class="section-eyebrow" data-aos="fade-down" data-aos-delay="120">In loving memory</p>
+          <h1 data-aos="fade-up" data-aos-delay="220"><?= htmlspecialchars($memorial['loved_one_name'], ENT_QUOTES, 'UTF-8') ?></h1>
+          <p class="memorial-dates" data-aos="fade-up" data-aos-delay="320">
             <?= htmlspecialchars(memorial_date_range($memorial), ENT_QUOTES, 'UTF-8') ?>
           </p>
-          <hr class="memorial-date-rule">
+          <hr class="memorial-date-rule" data-aos="zoom-in" data-aos-delay="400">
           <?php if (!empty($memorial['memorial_quote'])): ?>
-            <blockquote><?= nl2br(htmlspecialchars($memorial['memorial_quote'], ENT_QUOTES, 'UTF-8')) ?></blockquote>
+            <blockquote data-aos="fade-up" data-aos-delay="480"><?= nl2br(htmlspecialchars($memorial['memorial_quote'], ENT_QUOTES, 'UTF-8')) ?></blockquote>
           <?php endif; ?>
           <?php if (!empty($memorial['resting_place'])): ?>
             <?php if ($restingMapsUrl): ?>
-              <a class="memorial-resting-place" href="<?= htmlspecialchars($restingMapsUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">
+              <a class="memorial-resting-place" href="<?= htmlspecialchars($restingMapsUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" data-aos="fade-up" data-aos-delay="560">
                 <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
                 <span><?= htmlspecialchars($memorial['resting_place'], ENT_QUOTES, 'UTF-8') ?></span>
               </a>
             <?php else: ?>
-              <p class="memorial-resting-place">
+              <p class="memorial-resting-place" data-aos="fade-up" data-aos-delay="560">
                 <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
                 <span><?= htmlspecialchars($memorial['resting_place'], ENT_QUOTES, 'UTF-8') ?></span>
               </p>
             <?php endif; ?>
           <?php endif; ?>
-          <div class="memorial-hero-actions d-grid gap-2 mt-3">
+          <div class="memorial-hero-actions d-grid gap-2 mt-3" data-aos="fade-up" data-aos-delay="640">
             <?php if ($planLimits['life_story'] && (!empty($memorial['autobiography_text']) || $milestones)): ?>
               <button class="btn btn-light btn-lg story-play-button" type="button">Play Life Story</button>
             <?php endif; ?>
