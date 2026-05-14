@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS memorials (
   resting_lat DECIMAL(10, 7) NULL,
   resting_lng DECIMAL(10, 7) NULL,
   memorial_quote TEXT NULL,
+  favorite_song_url VARCHAR(500) NULL,
   short_description TEXT NULL,
   theme_primary CHAR(7) NOT NULL DEFAULT '#214c63',
   theme_secondary CHAR(7) NOT NULL DEFAULT '#eadcc8',

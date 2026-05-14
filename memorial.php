@@ -294,6 +294,11 @@ if ($selectedId > 0 && $qrGroup) {
 $themeStyle = memorial_theme_style($memorial);
 $planLimits = qr_plan_limits($qrGroup ?: null);
 $restingMapsUrl = memorial_coordinate_url($memorial);
+$favoriteSongUrl = trim((string) ($memorial['favorite_song_url'] ?? ''));
+
+if ($favoriteSongUrl !== '' && !filter_var($favoriteSongUrl, FILTER_VALIDATE_URL)) {
+    $favoriteSongUrl = '';
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isGroupView) {
     $formAction = clean_input($_POST['form_action'] ?? '');
@@ -538,7 +543,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-49') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-50') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -666,7 +671,7 @@ $messageFlash = get_flash();
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-49') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-50') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -709,8 +714,25 @@ $messageFlash = get_flash();
             <?php if ($planLimits['life_story'] && (!empty($memorial['autobiography_text']) || $milestones)): ?>
               <button class="btn btn-light btn-lg story-play-button" type="button">Play Life Story</button>
             <?php endif; ?>
-            <?php if ($galleryImages || $communityPhotos): ?>
-              <a class="btn btn-outline-light btn-lg" href="#gallery">View Gallery</a>
+            <?php if (($galleryImages || $communityPhotos) || $favoriteSongUrl !== ''): ?>
+              <div class="row g-2 memorial-hero-secondary-actions">
+                <?php if ($galleryImages || $communityPhotos): ?>
+                  <div class="<?= $favoriteSongUrl !== '' ? 'col-6' : 'col-12' ?>">
+                    <a class="btn btn-outline-light btn-lg w-100" href="#gallery">
+                      <i class="fa-solid fa-images" aria-hidden="true"></i>
+                      <span>View Gallery</span>
+                    </a>
+                  </div>
+                <?php endif; ?>
+                <?php if ($favoriteSongUrl !== ''): ?>
+                  <div class="<?= ($galleryImages || $communityPhotos) ? 'col-6' : 'col-12' ?>">
+                    <a class="btn btn-outline-light btn-lg w-100" href="<?= htmlspecialchars($favoriteSongUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">
+                      <i class="fa-solid fa-music" aria-hidden="true"></i>
+                      <span>Play Song</span>
+                    </a>
+                  </div>
+                <?php endif; ?>
+              </div>
             <?php endif; ?>
           </div>
         </div>

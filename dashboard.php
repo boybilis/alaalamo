@@ -26,6 +26,23 @@ function ini_bytes(string $value): int
     return (int) $number;
 }
 
+function clean_optional_url(string $value): ?string
+{
+    $url = trim($value);
+
+    if ($url === '') {
+        return null;
+    }
+
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        return null;
+    }
+
+    $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+
+    return in_array($scheme, ['http', 'https'], true) ? $url : null;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
     $postMaxBytes = ini_bytes((string) ini_get('post_max_size'));
 
@@ -1086,6 +1103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $restingLat = clean_coordinate((string) ($_POST['resting_lat'] ?? ''), -90, 90);
     $restingLng = clean_coordinate((string) ($_POST['resting_lng'] ?? ''), -180, 180);
     $memorialQuote = clean_input($_POST['memorial_quote'] ?? '');
+    $favoriteSongUrl = clean_optional_url((string) ($_POST['favorite_song_url'] ?? ''));
     $shortDescription = clean_input($_POST['short_description'] ?? '');
     $themePrimary = clean_hex_color($_POST['theme_primary'] ?? '', '#214c63');
     $themeSecondary = clean_hex_color($_POST['theme_secondary'] ?? '', '#eadcc8');
@@ -1108,7 +1126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token = $memorial['public_token'];
             $pdo->prepare(
                 'UPDATE memorials
-                 SET loved_one_name = ?, birth_date = ?, death_date = ?, resting_place = ?, resting_lat = ?, resting_lng = ?, memorial_quote = ?, short_description = ?, theme_primary = ?, theme_secondary = ?, theme_tertiary = ?, status = "published"
+                 SET loved_one_name = ?, birth_date = ?, death_date = ?, resting_place = ?, resting_lat = ?, resting_lng = ?, memorial_quote = ?, favorite_song_url = ?, short_description = ?, theme_primary = ?, theme_secondary = ?, theme_tertiary = ?, status = "published"
                  WHERE id = ?'
             )->execute([
                 $lovedOneName,
@@ -1118,6 +1136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $restingLat,
                 $restingLng,
                 $memorialQuote !== '' ? $memorialQuote : null,
+                $favoriteSongUrl,
                 $shortDescription !== '' ? $shortDescription : null,
                 $themePrimary,
                 $themeSecondary,
@@ -1136,8 +1155,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token = generate_token();
             $pdo->prepare(
                 'INSERT INTO memorials
-                 (user_id, qr_group_id, public_token, loved_one_name, birth_date, death_date, resting_place, resting_lat, resting_lng, memorial_quote, short_description, theme_primary, theme_secondary, theme_tertiary, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "published")'
+                 (user_id, qr_group_id, public_token, loved_one_name, birth_date, death_date, resting_place, resting_lat, resting_lng, memorial_quote, favorite_song_url, short_description, theme_primary, theme_secondary, theme_tertiary, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "published")'
             )->execute([
                 (int) $user['id'],
                 (int) $qrGroup['id'],
@@ -1149,6 +1168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $restingLat,
                 $restingLng,
                 $memorialQuote !== '' ? $memorialQuote : null,
+                $favoriteSongUrl,
                 $shortDescription !== '' ? $shortDescription : null,
                 $themePrimary,
                 $themeSecondary,
@@ -1333,7 +1353,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard | AlaalaMo</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-46') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-50') ?>">
   </head>
   <body class="dashboard-page">
     <header class="dashboard-header">
@@ -1460,6 +1480,11 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
             <label class="form-full">
               Quote or dedication from loved ones
               <textarea name="memorial_quote" rows="3" placeholder="Example: Your love remains our light, and your memory walks with us every day."><?= htmlspecialchars($memorial['memorial_quote'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+            </label>
+            <label class="form-full">
+              Favorite song URL
+              <input type="url" name="favorite_song_url" value="<?= htmlspecialchars($memorial['favorite_song_url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" placeholder="Paste Spotify, YouTube, or Apple Music link">
+              <span class="field-note">This appears as a Play Favorite Song button on the memorial hero.</span>
             </label>
             <label class="form-full">
               Short description
