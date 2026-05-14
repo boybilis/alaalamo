@@ -2445,8 +2445,8 @@ a.memorial-resting-place:hover {
 }
 
 .story-word.is-read {
-  color: color-mix(in srgb, var(--memorial-primary-text) 48%, #8f98a3);
-  opacity: 0.58;
+  color: #b94a48;
+  opacity: 0.72;
 }
 
 .story-word.is-current {

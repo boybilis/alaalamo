@@ -632,7 +632,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-58') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-59') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -770,7 +770,7 @@ $messageFlash = get_flash();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-58') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-59') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -1189,6 +1189,7 @@ $messageFlash = get_flash();
       let lightboxTransitionTimer = null;
       let slideTimer = null;
       let storyAdvanceTimer = null;
+      let readAlongTimer = null;
       let profileCoverTimer = null;
       let activeModalImage = 0;
       let preferredNarrationVoice = null;
@@ -1281,6 +1282,7 @@ $messageFlash = get_flash();
       function stopNarration() {
         window.speechSynthesis?.cancel();
         clearInterval(slideTimer);
+        clearInterval(readAlongTimer);
         clearTimeout(storyAdvanceTimer);
         if (narrationIsActive) {
           setBackgroundMusicVolume(100);
@@ -1371,17 +1373,23 @@ $messageFlash = get_flash();
 
         const tokens = text.match(/\S+\s*/g) || [];
         modalText.innerHTML = '';
+        let cursor = 0;
 
         return tokens.map((token, index) => {
+          const cleanToken = token.trim();
+          const start = text.indexOf(cleanToken, cursor);
+          const end = start + cleanToken.length;
           const span = document.createElement('span');
           span.className = 'story-word';
           span.dataset.wordIndex = String(index);
           span.textContent = token;
           modalText.appendChild(span);
+          cursor = end;
+
           return {
             span,
-            start: text.indexOf(token.trim(), index === 0 ? 0 : tokens.slice(0, index).join('').length),
-            end: tokens.slice(0, index + 1).join('').length
+            start,
+            end
           };
         });
       }
@@ -1397,6 +1405,27 @@ $messageFlash = get_flash();
           word.span.classList.toggle('is-read', activeIndex > -1 && index < activeIndex);
           word.span.classList.toggle('is-current', index === activeIndex);
         });
+      }
+
+      function startReadAlong(words, durationMs) {
+        clearInterval(readAlongTimer);
+
+        if (!words.length) {
+          return;
+        }
+
+        const startedAt = Date.now();
+        markNarrationProgress(words, 0);
+        readAlongTimer = window.setInterval(() => {
+          const progress = Math.min(1, (Date.now() - startedAt) / durationMs);
+          const wordIndex = Math.min(words.length - 1, Math.floor(progress * words.length));
+          markNarrationProgress(words, words[wordIndex]?.start || 0);
+
+          if (progress >= 1) {
+            clearInterval(readAlongTimer);
+            markNarrationProgress(words, Number.POSITIVE_INFINITY);
+          }
+        }, 220);
       }
 
       function speakMilestone(index) {
@@ -1427,13 +1456,14 @@ $messageFlash = get_flash();
         modal?.setAttribute('aria-hidden', 'false');
         if (modalTitle) modalTitle.textContent = title;
         const narrationWords = renderNarrationWords(text);
+        const estimatedWords = text.trim().split(/\s+/).filter(Boolean).length || 50;
+        const storyDuration = Math.max(9000, Math.min(18000, estimatedWords * 300));
+        startReadAlong(narrationWords, storyDuration);
         runSlideshow(images, text);
 
         if (!('speechSynthesis' in window)) {
-          const estimatedWords = text.trim().split(/\s+/).filter(Boolean).length || 50;
-          const silentDuration = Math.max(9000, Math.min(18000, estimatedWords * 300));
           clearTimeout(storyAdvanceTimer);
-          storyAdvanceTimer = window.setTimeout(() => speakMilestone(index + 1), silentDuration);
+          storyAdvanceTimer = window.setTimeout(() => speakMilestone(index + 1), storyDuration);
           return;
         }
 
@@ -1447,7 +1477,11 @@ $messageFlash = get_flash();
             markNarrationProgress(narrationWords, event.charIndex);
           }
         };
-        utterance.onend = () => speakMilestone(index + 1);
+        utterance.onend = () => {
+          clearInterval(readAlongTimer);
+          markNarrationProgress(narrationWords, Number.POSITIVE_INFINITY);
+          speakMilestone(index + 1);
+        };
         window.speechSynthesis.speak(utterance);
       }
 
