@@ -112,6 +112,48 @@ function spotify_embed_url(string $url): ?string
     return 'https://open.spotify.com/embed/' . rawurlencode($pathParts[0]) . '/' . rawurlencode($pathParts[1]);
 }
 
+function youtube_embed_url(string $url): ?string
+{
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        return null;
+    }
+
+    $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+    $path = trim((string) parse_url($url, PHP_URL_PATH), '/');
+    $query = [];
+    parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+    $videoId = null;
+
+    if (in_array($host, ['youtu.be', 'www.youtu.be'], true)) {
+        $videoId = explode('/', $path)[0] ?? null;
+    } elseif (str_ends_with($host, 'youtube.com')) {
+        if (($query['v'] ?? '') !== '') {
+            $videoId = (string) $query['v'];
+        } elseif (str_starts_with($path, 'shorts/')) {
+            $videoId = substr($path, strlen('shorts/'));
+        } elseif (str_starts_with($path, 'embed/')) {
+            $videoId = substr($path, strlen('embed/'));
+        }
+    }
+
+    $videoId = $videoId ? preg_replace('/[^a-zA-Z0-9_-]/', '', $videoId) : null;
+
+    return $videoId ? 'https://www.youtube.com/embed/' . $videoId : null;
+}
+
+function favorite_song_embed(string $url): ?array
+{
+    $youtubeUrl = youtube_embed_url($url);
+
+    if ($youtubeUrl) {
+        return ['type' => 'YouTube', 'url' => $youtubeUrl];
+    }
+
+    $spotifyUrl = spotify_embed_url($url);
+
+    return $spotifyUrl ? ['type' => 'Spotify', 'url' => $spotifyUrl] : null;
+}
+
 function qr_plan_type(?array $qrGroup): string
 {
     return (($qrGroup['plan_type'] ?? 'regular') === 'premium') ? 'premium' : 'regular';
@@ -322,7 +364,7 @@ if ($favoriteSongUrl !== '' && !filter_var($favoriteSongUrl, FILTER_VALIDATE_URL
     $favoriteSongUrl = '';
 }
 
-$favoriteSongEmbedUrl = $favoriteSongUrl !== '' ? spotify_embed_url($favoriteSongUrl) : null;
+$favoriteSongEmbed = $favoriteSongUrl !== '' ? favorite_song_embed($favoriteSongUrl) : null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isGroupView) {
     $formAction = clean_input($_POST['form_action'] ?? '');
@@ -567,7 +609,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-51') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-52') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -695,7 +737,7 @@ $messageFlash = get_flash();
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-51') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-52') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -906,11 +948,11 @@ $messageFlash = get_flash();
       <?php if ($favoriteSongUrl !== ''): ?>
         <section class="mobile-memorial-section favorite-song-section" id="favorite-song" data-favorite-song-section hidden>
           <h2><i class="fa-solid fa-music section-title-icon" aria-hidden="true"></i>Favorite Song</h2>
-          <?php if ($favoriteSongEmbedUrl): ?>
+          <?php if ($favoriteSongEmbed): ?>
             <iframe
-              class="favorite-song-embed"
-              src="<?= htmlspecialchars($favoriteSongEmbedUrl, ENT_QUOTES, 'UTF-8') ?>"
-              title="Favorite song Spotify player"
+              class="favorite-song-embed <?= $favoriteSongEmbed['type'] === 'YouTube' ? 'favorite-song-embed-youtube' : '' ?>"
+              src="<?= htmlspecialchars($favoriteSongEmbed['url'], ENT_QUOTES, 'UTF-8') ?>"
+              title="Favorite song <?= htmlspecialchars($favoriteSongEmbed['type'], ENT_QUOTES, 'UTF-8') ?> player"
               loading="lazy"
               allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
             ></iframe>
