@@ -123,6 +123,7 @@ function youtube_embed_url(string $url): ?string
     $query = [];
     parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
     $videoId = null;
+    $playlistId = null;
 
     if (in_array($host, ['youtu.be', 'www.youtu.be'], true)) {
         $videoId = explode('/', $path)[0] ?? null;
@@ -133,12 +134,31 @@ function youtube_embed_url(string $url): ?string
             $videoId = substr($path, strlen('shorts/'));
         } elseif (str_starts_with($path, 'embed/')) {
             $videoId = substr($path, strlen('embed/'));
+        } elseif (str_starts_with($path, 'live/')) {
+            $videoId = substr($path, strlen('live/'));
         }
     }
 
     $videoId = $videoId ? preg_replace('/[^a-zA-Z0-9_-]/', '', $videoId) : null;
+    $playlistId = !empty($query['list']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $query['list']) : null;
 
-    return $videoId ? 'https://www.youtube.com/embed/' . $videoId : null;
+    if (!$videoId && !$playlistId) {
+        return null;
+    }
+
+    $embedUrl = $videoId
+        ? 'https://www.youtube.com/embed/' . $videoId
+        : 'https://www.youtube.com/embed/videoseries';
+    $embedQuery = [
+        'rel' => '0',
+        'origin' => rtrim(app_base_url(), '/'),
+    ];
+
+    if ($playlistId) {
+        $embedQuery['list'] = $playlistId;
+    }
+
+    return $embedUrl . '?' . http_build_query($embedQuery);
 }
 
 function favorite_song_embed(string $url): ?array
@@ -609,7 +629,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-52') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-53') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -737,7 +757,7 @@ $messageFlash = get_flash();
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-52') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-53') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -953,8 +973,10 @@ $messageFlash = get_flash();
               class="favorite-song-embed <?= $favoriteSongEmbed['type'] === 'YouTube' ? 'favorite-song-embed-youtube' : '' ?>"
               src="<?= htmlspecialchars($favoriteSongEmbed['url'], ENT_QUOTES, 'UTF-8') ?>"
               title="Favorite song <?= htmlspecialchars($favoriteSongEmbed['type'], ENT_QUOTES, 'UTF-8') ?> player"
-              loading="lazy"
-              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerpolicy="strict-origin-when-cross-origin"
+              allowfullscreen
             ></iframe>
           <?php else: ?>
             <a class="favorite-song-link" href="<?= htmlspecialchars($favoriteSongUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">
