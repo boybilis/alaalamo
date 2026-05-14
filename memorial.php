@@ -718,6 +718,7 @@ $messageFlash = get_flash();
 
       <?php if (!empty($memorial['short_description'])): ?>
         <section class="mobile-memorial-section">
+          <h2><i class="fa-solid fa-book-open section-title-icon" aria-hidden="true"></i>About</h2>
           <article class="memorial-info-card">
             <div class="memorial-info-card-body">
               <p><?= nl2br(htmlspecialchars($memorial['short_description'], ENT_QUOTES, 'UTF-8')) ?></p>
