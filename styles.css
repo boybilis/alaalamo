@@ -1920,6 +1920,40 @@ a.memorial-resting-place:hover {
   text-align: center;
 }
 
+.milestone-stack-controls {
+  display: none;
+  grid-template-columns: repeat(2, 44px);
+  justify-content: center;
+  gap: 12px;
+  margin: 0 0 10px;
+}
+
+.milestone-stack-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid color-mix(in srgb, var(--memorial-primary-text) 28%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--memorial-secondary) 34%, transparent);
+  color: var(--memorial-tertiary-text);
+  box-shadow: 0 12px 28px rgba(24, 41, 54, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.milestone-stack-controls button:hover,
+.milestone-stack-controls button:focus {
+  background: var(--memorial-secondary);
+  color: var(--memorial-secondary-text);
+}
+
+@media (min-width: 768px) {
+  .milestone-stack-controls {
+    display: grid;
+  }
+}
+
 .preview-milestone span {
   color: inherit;
   font-size: 12px;

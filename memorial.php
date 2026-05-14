@@ -632,7 +632,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-54') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-55') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -770,7 +770,7 @@ $messageFlash = get_flash();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-54') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260514-55') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">
@@ -951,6 +951,16 @@ $messageFlash = get_flash();
               </article>
             <?php endforeach; ?>
           </div>
+          <?php if (count($milestones) > 1): ?>
+            <div class="milestone-stack-controls" aria-label="Browse milestones">
+              <button type="button" data-milestone-prev aria-label="Previous milestone">
+                <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+              </button>
+              <button type="button" data-milestone-next aria-label="Next milestone">
+                <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+              </button>
+            </div>
+          <?php endif; ?>
           <p class="milestone-stack-hint">Swipe left or right to browse milestones.</p>
         </section>
       <?php endif; ?>
@@ -1163,6 +1173,8 @@ $messageFlash = get_flash();
       const favoriteSongSection = document.querySelector('[data-favorite-song-section]');
       const favoriteSongEmbed = document.querySelector('[data-song-src]');
       const milestoneStack = document.querySelector('[data-milestone-stack]');
+      const milestonePrev = document.querySelector('[data-milestone-prev]');
+      const milestoneNext = document.querySelector('[data-milestone-next]');
       let activeLightboxIndex = -1;
       let lightboxTouchStartX = 0;
       let slideTimer = null;
@@ -1204,12 +1216,30 @@ $messageFlash = get_flash();
           });
         }
 
+        function scrollMilestoneStack(direction) {
+          const activeIndex = stackedMilestones.findIndex((card) => card.classList.contains('is-in-view'));
+          const nextIndex = Math.max(0, Math.min(stackedMilestones.length - 1, activeIndex + direction));
+          const nextCard = stackedMilestones[nextIndex];
+
+          if (!nextCard) {
+            return;
+          }
+
+          const left = nextCard.offsetLeft - ((milestoneStack.clientWidth - nextCard.offsetWidth) / 2);
+          milestoneStack.scrollTo({ left, behavior: 'smooth' });
+          stackedMilestones.forEach((card) => {
+            card.classList.toggle('is-in-view', card === nextCard);
+          });
+        }
+
         milestoneStack.addEventListener('scroll', () => {
           window.clearTimeout(milestoneStackTimer);
           milestoneStackTimer = window.setTimeout(syncMilestoneStack, 60);
         }, { passive: true });
 
         window.addEventListener('resize', syncMilestoneStack);
+        milestonePrev?.addEventListener('click', () => scrollMilestoneStack(-1));
+        milestoneNext?.addEventListener('click', () => scrollMilestoneStack(1));
         syncMilestoneStack();
       }
 
