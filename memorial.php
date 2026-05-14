@@ -917,8 +917,8 @@ $messageFlash = get_flash();
       </section>
 
       <?php if ($milestones): ?>
-        <section class="mobile-memorial-section milestone-stack-section" data-aos="fade-up">
-          <h2><i class="fa-solid fa-timeline section-title-icon" aria-hidden="true"></i>Life Milestones</h2>
+        <section class="mobile-memorial-section milestone-stack-section" data-aos="fade-up" data-milestone-section>
+          <h2 data-milestone-heading><i class="fa-solid fa-timeline section-title-icon" aria-hidden="true"></i>Life Milestones</h2>
           <div class="milestone-stack-track" data-milestone-stack>
             <?php foreach ($milestones as $milestoneIndex => $milestone): ?>
               <?php $imagesForMilestone = $milestoneImages[(int) $milestone['id']] ?? []; ?>
@@ -1173,6 +1173,7 @@ $messageFlash = get_flash();
       const favoriteSongSection = document.querySelector('[data-favorite-song-section]');
       const favoriteSongEmbed = document.querySelector('[data-song-src]');
       const milestoneStack = document.querySelector('[data-milestone-stack]');
+      const milestoneSection = document.querySelector('[data-milestone-section]');
       const milestonePrev = document.querySelector('[data-milestone-prev]');
       const milestoneNext = document.querySelector('[data-milestone-next]');
       let activeLightboxIndex = -1;
@@ -1230,6 +1231,7 @@ $messageFlash = get_flash();
           stackedMilestones.forEach((card) => {
             card.classList.toggle('is-in-view', card === nextCard);
           });
+          milestoneSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         milestoneStack.addEventListener('scroll', () => {
