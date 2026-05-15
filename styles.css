@@ -1077,6 +1077,12 @@ h2 {
   text-align: center;
 }
 
+.qr-panel .button-primary,
+.qr-panel .button-secondary,
+.qr-panel .button-success {
+  margin: 6px;
+}
+
 .qr-panel img {
   width: 220px;
   max-width: 100%;
