@@ -806,12 +806,6 @@ $communityPhotos = $stmt->fetchAll();
 
 $heroImages = $profileImages ?: $galleryImages;
 
-if (!$heroImages) {
-    $heroImages = [[
-        'image_path' => default_memorial_profile_image(),
-    ]];
-}
-
 $stmt = $pdo->prepare('SELECT * FROM milestones WHERE memorial_id = ? ORDER BY sort_order ASC, id ASC LIMIT ' . (int) $planLimits['milestones']);
 $stmt->execute([(int) $memorial['id']]);
 $milestones = $stmt->fetchAll();
