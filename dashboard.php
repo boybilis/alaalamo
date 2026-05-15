@@ -521,6 +521,54 @@ function additional_memorial_price_for_type(string $planType): int
     return $planType === 'premium' ? 700 : 399;
 }
 
+function memorial_expiration_at(?array $memorial): ?DateTimeImmutable
+{
+    $paidAt = trim((string) ($memorial['paid_at'] ?? ''));
+
+    if ($paidAt === '') {
+        return null;
+    }
+
+    try {
+        return (new DateTimeImmutable($paidAt))->modify('+1 year');
+    } catch (Throwable $exception) {
+        return null;
+    }
+}
+
+function memorial_expiration_label(?array $memorial): ?string
+{
+    $expiresAt = memorial_expiration_at($memorial);
+
+    if (!$expiresAt) {
+        return null;
+    }
+
+    return $expiresAt->format('F d, Y');
+}
+
+function memorial_expiration_countdown(?array $memorial): ?string
+{
+    $expiresAt = memorial_expiration_at($memorial);
+
+    if (!$expiresAt) {
+        return null;
+    }
+
+    $today = new DateTimeImmutable('today');
+    $days = (int) $today->diff($expiresAt)->format('%r%a');
+
+    if ($days < 0) {
+        return 'Expired ' . abs($days) . ' day' . (abs($days) === 1 ? '' : 's') . ' ago';
+    }
+
+    if ($days === 0) {
+        return 'Expires today';
+    }
+
+    return $days . ' day' . ($days === 1 ? '' : 's') . ' left';
+}
+
 function is_ajax_request(): bool
 {
     return ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest'
@@ -1384,6 +1432,8 @@ $paidMemorials = array_values(array_filter(
 ));
 $hasLiveMemorials = count($paidMemorials) > 0;
 $isCurrentMemorialPaid = $memorial && (($memorial['payment_status'] ?? 'pending') === 'paid');
+$currentMemorialExpiry = memorial_expiration_label($memorial);
+$currentMemorialCountdown = memorial_expiration_countdown($memorial);
 $publicUrl = rtrim(app_base_url(), '/') . '/memorial.php?t=' . urlencode($qrGroup['public_token']);
 $previewUrl = $publicUrl . '&preview=1';
 $qrUrl = $hasLiveMemorials ? 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($publicUrl) : '';
@@ -1459,6 +1509,14 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           <?php if ($additionalCost > 0): ?>
             <p>Additional memorial total: PHP <?= number_format($additionalCost) ?> per year.</p>
           <?php endif; ?>
+          <?php if ($memorial && $isCurrentMemorialPaid && $currentMemorialExpiry): ?>
+            <div class="subscription-expiry <?= $currentMemorialCountdown && str_starts_with($currentMemorialCountdown, 'Expired') ? 'is-expired' : '' ?>">
+              <strong>Subscription expires on <?= htmlspecialchars($currentMemorialExpiry, ENT_QUOTES, 'UTF-8') ?></strong>
+              <?php if ($currentMemorialCountdown): ?>
+                <span><?= htmlspecialchars($currentMemorialCountdown, ENT_QUOTES, 'UTF-8') ?></span>
+              <?php endif; ?>
+            </div>
+          <?php endif; ?>
           <?php if ($memorial && !$isCurrentMemorialPaid): ?>
             <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link>Activate this memorial</a>
           <?php endif; ?>
@@ -1467,6 +1525,14 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           <div class="qr-panel-actions">
             <a class="button-info" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
           </div>
+          <?php if ($memorial && $isCurrentMemorialPaid && $currentMemorialExpiry): ?>
+            <div class="subscription-expiry <?= $currentMemorialCountdown && str_starts_with($currentMemorialCountdown, 'Expired') ? 'is-expired' : '' ?>">
+              <strong>Subscription expires on <?= htmlspecialchars($currentMemorialExpiry, ENT_QUOTES, 'UTF-8') ?></strong>
+              <?php if ($currentMemorialCountdown): ?>
+                <span><?= htmlspecialchars($currentMemorialCountdown, ENT_QUOTES, 'UTF-8') ?></span>
+              <?php endif; ?>
+            </div>
+          <?php endif; ?>
           <?php if ($memorial): ?>
             <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link>Complete payment</a>
           <?php endif; ?>
