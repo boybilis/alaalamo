@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <body class="auth-page">
     <main class="auth-card">
       <a class="brand auth-brand" href="/">
-        <span class="brand-mark" aria-hidden="true">A</span>
+        <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png" alt=""></span>
         <span class="brand-highlight">AlaalaMo</span>
       </a>
       <h1>Login with email OTP</h1>

@@ -119,7 +119,7 @@ $registrationFlash = get_flash();
   <body>
     <header class="site-header" aria-label="Main navigation">
       <a class="brand" href="/">
-        <span class="brand-mark" aria-hidden="true">A</span>
+        <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png" alt=""></span>
         <span class="brand-highlight">AlaalaMo</span>
       </a>
       <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="primary-navigation" aria-expanded="false">
@@ -320,7 +320,7 @@ $registrationFlash = get_flash();
       <div class="footer-content">
         <div>
           <a class="footer-brand" href="/">
-            <span class="brand-mark" aria-hidden="true">A</span>
+            <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png" alt=""></span>
             <span class="brand-highlight">AlaalaMo</span>
           </a>
           <p>
