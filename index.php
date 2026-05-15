@@ -5,7 +5,6 @@ $pageTitle = 'AlaalaMo | Digital Memorial Space';
 $pageDescription = "A QR memorial to preserve the faces, stories, and memories that should not fade with time.";
 $navItems = [
     ['label' => 'What it does', 'href' => '#what-it-does'],
-    ['label' => 'QR Demo', 'href' => '#qr-demo'],
     ['label' => 'Features', 'href' => '#features'],
     ['label' => 'Pricing', 'href' => '#pricing'],
     ['label' => 'Register', 'href' => '#signup'],
@@ -316,66 +315,6 @@ $registrationFlash = get_flash();
                 <p><?= htmlspecialchars($feature['body'], ENT_QUOTES, 'UTF-8') ?></p>
               </article>
             <?php endforeach; ?>
-          </div>
-        </div>
-      </section>
-
-      <section class="demo-section" id="qr-demo" aria-labelledby="demo-title">
-        <div class="demo-content">
-          <div class="section-heading">
-            <p class="section-eyebrow">QR demo</p>
-            <h2 id="demo-title">Show families what a finished memorial can feel like.</h2>
-            <p class="section-quote">
-              Use this sample memorial in your pitch: a QR on one side, and a mobile memorial preview on the other,
-              showing how a loved one can be remembered through photos, milestones, and a life summary.
-            </p>
-          </div>
-
-          <div class="demo-layout">
-            <aside class="demo-qr-card">
-              <p class="demo-qr-label">Sample memorial QR</p>
-              <div class="demo-qr-code" aria-hidden="true">
-                <?php for ($i = 0; $i < 100; $i++): ?>
-                  <span class="<?= in_array($i % 10, [0, 1, 8, 9], true) && $i < 20 ? 'is-filled is-corner' : (($i + intdiv($i, 3)) % 3 === 0 ? 'is-filled' : '') ?>"></span>
-                <?php endfor; ?>
-              </div>
-              <strong><?= htmlspecialchars($demoMemorial['name'], ENT_QUOTES, 'UTF-8') ?></strong>
-              <p><?= htmlspecialchars($demoMemorial['resting_place'], ENT_QUOTES, 'UTF-8') ?></p>
-              <small>Private QR-only sample for client presentation</small>
-            </aside>
-
-            <article class="demo-phone">
-              <div class="demo-phone-hero">
-                <img src="<?= htmlspecialchars($demoMemorial['profile_image'], ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($demoMemorial['name'], ENT_QUOTES, 'UTF-8') ?>">
-                <div class="demo-phone-overlay"></div>
-                <div class="demo-phone-copy">
-                  <p class="demo-phone-kicker">In loving memory</p>
-                  <h3><?= htmlspecialchars($demoMemorial['name'], ENT_QUOTES, 'UTF-8') ?></h3>
-                  <p class="demo-phone-dates"><?= htmlspecialchars($demoMemorial['dates'], ENT_QUOTES, 'UTF-8') ?></p>
-                  <blockquote><?= htmlspecialchars($demoMemorial['quote'], ENT_QUOTES, 'UTF-8') ?></blockquote>
-                </div>
-              </div>
-
-              <div class="demo-phone-body">
-                <section class="demo-info-card">
-                  <span>About this memorial</span>
-                  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed nec nibh non justo volutpat cursus. Integer vitae augue sed ipsum lacinia tempor.</p>
-                </section>
-
-                <section class="demo-milestone-list">
-                  <?php foreach ($demoMemorial['milestones'] as $milestone): ?>
-                    <article class="demo-milestone-card">
-                      <div class="demo-milestone-head">
-                        <small><?= htmlspecialchars($milestone['date'], ENT_QUOTES, 'UTF-8') ?></small>
-                        <h4><?= htmlspecialchars($milestone['title'], ENT_QUOTES, 'UTF-8') ?></h4>
-                      </div>
-                      <img src="<?= htmlspecialchars($milestone['image'], ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($milestone['title'], ENT_QUOTES, 'UTF-8') ?>">
-                      <p><?= htmlspecialchars($milestone['body'], ENT_QUOTES, 'UTF-8') ?></p>
-                    </article>
-                  <?php endforeach; ?>
-                </section>
-              </div>
-            </article>
           </div>
         </div>
       </section>
