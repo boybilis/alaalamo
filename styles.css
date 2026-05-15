@@ -80,6 +80,8 @@ a { color: inherit; text-decoration: none; }
   width: 44px;
   height: 44px;
   flex: 0 0 44px;
+  border-radius: 50%;
+  overflow: hidden;
 }
 
 .brand-mark-image {
@@ -837,8 +839,7 @@ h2 {
 }
 
 .footer-brand .brand-mark {
-  background: var(--beige);
-  color: #0f2740;
+  box-shadow: none;
 }
 
 .site-footer p {
