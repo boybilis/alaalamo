@@ -222,6 +222,11 @@ function cloudinary_optimized_image_url(string $imageUrl): string
     return str_replace('/upload/', '/upload/' . $transformation . '/', $imageUrl);
 }
 
+function default_memorial_profile_image(): string
+{
+    return 'assets/alaalamo-logo-mark.png';
+}
+
 function send_memorial_message_otp(string $email, string $otp, string $lovedOneName): bool
 {
     $autoloadPath = __DIR__ . '/vendor/autoload.php';
@@ -741,19 +746,20 @@ if ($isGroupView): ?>
                   $imageStmt->execute([(int) $item['id']]);
                   $image = $imageStmt->fetchColumn();
               }
+              if (!$image) {
+                  $image = default_memorial_profile_image();
+              }
               $itemUrl = 'memorial.php?t=' . urlencode($token)
                   . ($isPrivatePreview ? '&preview=1' : '')
                   . '&m=' . (int) $item['id'];
             ?>
             <a class="memorial-select-card" href="<?= htmlspecialchars($itemUrl, ENT_QUOTES, 'UTF-8') ?>">
-              <?php if ($image): ?>
-                <img
-                  src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>"
-                  alt="<?= htmlspecialchars($item['loved_one_name'], ENT_QUOTES, 'UTF-8') ?>"
-                  data-lightbox-src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>"
-                  data-lightbox-alt="<?= htmlspecialchars($item['loved_one_name'], ENT_QUOTES, 'UTF-8') ?>"
-                >
-              <?php endif; ?>
+              <img
+                src="<?= htmlspecialchars((string) $image, ENT_QUOTES, 'UTF-8') ?>"
+                alt="<?= htmlspecialchars($item['loved_one_name'], ENT_QUOTES, 'UTF-8') ?>"
+                data-lightbox-src="<?= htmlspecialchars((string) $image, ENT_QUOTES, 'UTF-8') ?>"
+                data-lightbox-alt="<?= htmlspecialchars($item['loved_one_name'], ENT_QUOTES, 'UTF-8') ?>"
+              >
               <span>
                 <strong><?= htmlspecialchars($item['loved_one_name'], ENT_QUOTES, 'UTF-8') ?></strong>
                 <small><?= htmlspecialchars(memorial_date_range($item), ENT_QUOTES, 'UTF-8') ?></small>
@@ -799,6 +805,12 @@ $stmt->execute([(int) $memorial['id']]);
 $communityPhotos = $stmt->fetchAll();
 
 $heroImages = $profileImages ?: $galleryImages;
+
+if (!$heroImages) {
+    $heroImages = [[
+        'image_path' => default_memorial_profile_image(),
+    ]];
+}
 
 $stmt = $pdo->prepare('SELECT * FROM milestones WHERE memorial_id = ? ORDER BY sort_order ASC, id ASC LIMIT ' . (int) $planLimits['milestones']);
 $stmt->execute([(int) $memorial['id']]);
