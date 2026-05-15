@@ -156,6 +156,12 @@ if (!$user) {
     redirect_to('/login.php');
 }
 
+$accessQrGroup = ensure_qr_group((int) $user['id']);
+
+if (($accessQrGroup['payment_status'] ?? 'pending') !== 'paid') {
+    redirect_to('/billing.php');
+}
+
 function uploaded_file_at(array $files, int $index): array
 {
     return [
@@ -1247,7 +1253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$qrGroup = ensure_qr_group((int) $user['id']);
+$qrGroup = $accessQrGroup;
 $planType = qr_plan_type($qrGroup);
 $planLimits = qr_plan_limits($qrGroup);
 $stmt = $pdo->prepare('SELECT * FROM memorials WHERE user_id = ? AND qr_group_id = ? ORDER BY id ASC');
