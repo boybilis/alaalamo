@@ -248,8 +248,13 @@ $registrationFlash = get_flash();
 
       <section class="founder-section" aria-labelledby="founder-title">
         <div class="founder-content">
-          <div class="founder-mark">
-            <img src="assets/founder-joseph-aramil.jpeg" alt="Joseph Michael Aramil, founder of AlaalaMo">
+          <div class="founder-media">
+            <div class="founder-mark">
+              <img src="assets/founder-joseph-aramil.jpeg" alt="Joseph Michael Aramil, founder of AlaalaMo">
+            </div>
+            <div class="founder-logo">
+              <img src="assets/alaalamo-logo-mark.png" alt="AlaalaMo logo">
+            </div>
           </div>
           <div>
             <p class="section-eyebrow">Founder story</p>
