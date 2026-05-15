@@ -122,6 +122,8 @@ if (!$user) {
 
 $qrGroup = ensure_qr_group((int) $user['id']);
 $memorialId = (int) ($_GET['memorial_id'] ?? $_POST['memorial_id'] ?? 0);
+$requestedPlanType = clean_input($_GET['requested_plan'] ?? $_POST['requested_plan'] ?? '');
+$requestedPlanType = $requestedPlanType === 'premium' ? 'premium' : ($requestedPlanType === 'regular' ? 'regular' : '');
 
 if ($memorialId <= 0) {
     $stmt = $pdo->prepare('SELECT id FROM memorials WHERE user_id = ? AND qr_group_id = ? ORDER BY id ASC LIMIT 1');
@@ -141,6 +143,13 @@ $memorial = $stmt->fetch();
 if (!$memorial) {
     flash('error', 'Memorial not found.');
     redirect_to('/dashboard.php');
+}
+
+if (($memorial['payment_status'] ?? 'pending') !== 'paid' && $requestedPlanType !== '' && $requestedPlanType !== ($memorial['plan_type'] ?? 'regular')) {
+    $pdo->prepare('UPDATE memorials SET plan_type = ? WHERE id = ?')->execute([$requestedPlanType, (int) $memorial['id']]);
+    $stmt = $pdo->prepare('SELECT * FROM memorials WHERE id = ? LIMIT 1');
+    $stmt->execute([(int) $memorial['id']]);
+    $memorial = $stmt->fetch();
 }
 
 if (($memorial['payment_status'] ?? 'pending') === 'paid') {
@@ -215,6 +224,7 @@ $flash = get_flash();
       <p class="field-note">After sending payment through GCash, click the button below so AlaalaMo can review and activate this memorial.</p>
       <form class="auth-form" method="post" action="billing.php">
         <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+        <input type="hidden" name="requested_plan" value="<?= htmlspecialchars((string) ($memorial['plan_type'] ?? 'regular'), ENT_QUOTES, 'UTF-8') ?>">
         <button class="button-success" type="submit">I have paid. Request activation.</button>
       </form>
       <a class="auth-link" href="/dashboard.php?memorial_id=<?= (int) $memorial['id'] ?>">Back to dashboard</a>

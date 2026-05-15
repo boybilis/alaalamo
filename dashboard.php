@@ -1451,20 +1451,24 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           <a class="qr-preview-link" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">
             <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
           </a>
-          <a class="button-primary" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Live Memorial</a>
-          <a class="button-secondary" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
+          <div class="qr-panel-actions">
+            <a class="button-primary" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Live Memorial</a>
+            <a class="button-info" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
+          </div>
           <p><?= count($paidMemorials) ?> paid of <?= count($memorials) ?> prepared memorials in this QR. Additional memorials are PHP <?= number_format($regularAdditionalPrice) ?> for Standard or PHP <?= number_format($premiumAdditionalPrice) ?> for Premium.</p>
           <?php if ($additionalCost > 0): ?>
             <p>Additional memorial total: PHP <?= number_format($additionalCost) ?> per year.</p>
           <?php endif; ?>
           <?php if ($memorial && !$isCurrentMemorialPaid): ?>
-            <a class="button-success" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>">Activate this memorial</a>
+            <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link>Activate this memorial</a>
           <?php endif; ?>
         <?php else: ?>
           <p>Your private preview is ready while payment is pending. The public QR code will be generated after activation.</p>
-          <a class="button-primary" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
+          <div class="qr-panel-actions">
+            <a class="button-info" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
+          </div>
           <?php if ($memorial): ?>
-            <a class="button-success" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>">Complete payment</a>
+            <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link>Complete payment</a>
           <?php endif; ?>
           <p><?= count($memorials) ?> of <?= MAX_MEMORIALS_PER_QR ?> memorials prepared for this QR.</p>
         <?php endif; ?>
@@ -2273,6 +2277,19 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
               alert(ajaxErrorMessage(xhr, 'Image could not be deleted.'));
             }
           });
+        });
+
+        $('[data-billing-link]').on('click', function () {
+          const planType = $('select[name="plan_type"]').val();
+          const href = $(this).attr('href') || '';
+
+          if (!href || !planType) {
+            return;
+          }
+
+          const separator = href.indexOf('?') === -1 ? '?' : '&';
+          const cleanHref = href.replace(/([?&])requested_plan=[^&]*/g, '').replace(/[?&]$/, '');
+          $(this).attr('href', cleanHref + separator + 'requested_plan=' + encodeURIComponent(planType));
         });
       });
     </script>

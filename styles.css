@@ -176,7 +176,7 @@ h1 {
   font-weight: 600;
   line-height: 1.5;
 }
-.button-primary, .button-secondary, .button-success {
+.button-primary, .button-secondary, .button-success, .button-info {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -191,8 +191,9 @@ h1 {
 .button-primary { background: var(--beige); color: var(--accent-dark); box-shadow: var(--shadow); }
 .button-secondary { border: 1px solid rgba(234, 220, 200, 0.7); background: rgba(234, 220, 200, 0.18); color: var(--white); backdrop-filter: blur(14px); }
 .button-success { background: #1f6848; color: var(--white); box-shadow: 0 18px 40px rgba(31, 104, 72, 0.24); }
-.button-primary:hover, .button-secondary:hover, .button-success:hover { transform: translateY(-2px); }
-.button-primary:focus-visible, .button-secondary:focus-visible, .button-success:focus-visible, .nav-links a:focus-visible, .brand:focus-visible { outline: 3px solid var(--gold); outline-offset: 4px; }
+.button-info { background: #c2872f; color: #fff9ef; box-shadow: 0 18px 40px rgba(194, 135, 47, 0.24); }
+.button-primary:hover, .button-secondary:hover, .button-success:hover, .button-info:hover { transform: translateY(-2px); }
+.button-primary:focus-visible, .button-secondary:focus-visible, .button-success:focus-visible, .button-info:focus-visible, .nav-links a:focus-visible, .brand:focus-visible { outline: 3px solid var(--gold); outline-offset: 4px; }
 
 .what-section {
   position: relative;
@@ -1077,10 +1078,24 @@ h2 {
   text-align: center;
 }
 
+.qr-panel-actions {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0 10px;
+}
+
 .qr-panel .button-primary,
 .qr-panel .button-secondary,
-.qr-panel .button-success {
-  margin: 6px;
+.qr-panel .button-success,
+.qr-panel .button-info {
+  width: 100%;
+}
+
+.qr-panel > .button-primary,
+.qr-panel > .button-secondary,
+.qr-panel > .button-success,
+.qr-panel > .button-info {
+  margin-top: 12px;
 }
 
 .qr-panel img {
@@ -1120,6 +1135,7 @@ h2 {
 }
 
 .form-grid input,
+.form-grid select,
 .form-grid textarea {
   width: 100%;
   border: 1px solid var(--soft-line);
@@ -1129,7 +1145,8 @@ h2 {
   font: inherit;
 }
 
-.form-grid input {
+.form-grid input,
+.form-grid select {
   min-height: 48px;
   padding: 0 14px;
 }
@@ -1142,6 +1159,19 @@ h2 {
 .form-grid textarea {
   resize: vertical;
   padding: 12px 14px;
+}
+
+.form-grid select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--accent-dark) 50%),
+    linear-gradient(135deg, var(--accent-dark) 50%, transparent 50%);
+  background-position:
+    calc(100% - 20px) calc(50% - 3px),
+    calc(100% - 14px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 38px;
 }
 
 .field-note {
