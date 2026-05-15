@@ -2,7 +2,7 @@
 require_once __DIR__ . '/config.php';
 
 $pageTitle = 'AlaalaMo | Digital Memorial Space';
-$pageDescription = "AlaalaMo helps families create private QR-access memorials so future generations can see the faces, stories, and memories behind a loved one's name.";
+$pageDescription = "A QR memorial to preserve the faces, stories, and memories that should not fade with time.";
 $navItems = [
     ['label' => 'What it does', 'href' => '#what-it-does'],
     ['label' => 'Features', 'href' => '#features'],
@@ -141,9 +141,9 @@ $registrationFlash = get_flash();
         <div class="hero-overlay"></div>
         <div class="hero-content">
           <p class="eyebrow">Private QR memorial pages</p>
-          <h1 id="hero-title">A QR memorial for the people they never got to meet.</h1>
+          <h1 id="hero-title">A QR Memorial to preserve the faces, stories, and memories that should not fade with time.</h1>
           <p class="hero-copy">
-            <span class="brand-highlight">AlaalaMo</span> helps families create a private digital memorial with real
+            <span class="brand-highlight">AlaalaMo</span> gives families a private digital memorial with real
             photos, life details, and tributes that can be opened by scanning a
             QR code at the resting place.
           </p>
