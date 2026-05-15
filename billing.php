@@ -243,7 +243,7 @@ $flash = get_flash();
   <body class="auth-page">
     <main class="auth-card">
       <a class="brand auth-brand" href="/">
-        <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png" alt=""></span>
+        <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time())) ?>" alt=""></span>
         <span class="brand-highlight">AlaalaMo</span>
       </a>
       <h1>Complete your yearly subscription</h1>

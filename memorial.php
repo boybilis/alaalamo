@@ -224,7 +224,7 @@ function cloudinary_optimized_image_url(string $imageUrl): string
 
 function default_memorial_profile_image(): string
 {
-    return 'assets/alaalamo-logo-mark.png';
+    return 'assets/alaalamo-logo-mark.png?v=' . urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time()));
 }
 
 function send_memorial_message_otp(string $email, string $otp, string $lovedOneName): bool
@@ -369,7 +369,7 @@ function render_unavailable_memorial(): never
   <body class="auth-page">
     <main class="auth-card">
       <a class="brand auth-brand" href="/">
-        <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png" alt=""></span>
+        <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time())) ?>" alt=""></span>
         <span class="brand-highlight">AlaalaMo</span>
       </a>
       <p class="section-eyebrow">Memorial notice</p>
@@ -715,7 +715,7 @@ if ($isGroupView): ?>
     <main class="mobile-memorial mobile-memorial-group">
       <section class="mobile-memorial-header" data-aos="fade-up">
         <a class="mobile-memorial-brand" href="https://alaalamo.site" target="_blank" rel="noopener" aria-label="AlaalaMo home">
-          <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png" alt=""></span>
+          <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time())) ?>" alt=""></span>
           <span>AlaalaMo</span>
         </a>
         <p class="section-eyebrow">Family tribute</p>

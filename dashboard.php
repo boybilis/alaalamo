@@ -1456,7 +1456,7 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
   <body class="dashboard-page">
     <header class="dashboard-header">
       <a class="brand auth-brand" href="/">
-        <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png" alt=""></span>
+        <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time())) ?>" alt=""></span>
         <span class="brand-highlight">AlaalaMo</span>
       </a>
       <a class="auth-link" href="/logout.php">Logout</a>

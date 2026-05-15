@@ -119,7 +119,7 @@ $registrationFlash = get_flash();
   <body>
     <header class="site-header" aria-label="Main navigation">
       <a class="brand" href="/">
-        <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png" alt=""></span>
+        <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time())) ?>" alt=""></span>
         <span class="brand-highlight">AlaalaMo</span>
       </a>
       <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="primary-navigation" aria-expanded="false">
@@ -253,7 +253,7 @@ $registrationFlash = get_flash();
               <img src="assets/founder-joseph-aramil.jpeg" alt="Joseph Michael Aramil, founder of AlaalaMo">
             </div>
             <div class="founder-logo">
-              <img src="assets/alaalamo-logo-mark.png" alt="AlaalaMo logo">
+              <img src="assets/alaalamo-logo-mark.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time())) ?>" alt="AlaalaMo logo">
             </div>
           </div>
           <div>
@@ -325,7 +325,7 @@ $registrationFlash = get_flash();
       <div class="footer-content">
         <div>
           <a class="footer-brand" href="/">
-            <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png" alt=""></span>
+            <span class="brand-mark" aria-hidden="true"><img class="brand-mark-image" src="assets/alaalamo-logo-mark.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time())) ?>" alt=""></span>
             <span class="brand-highlight">AlaalaMo</span>
           </a>
           <p>
