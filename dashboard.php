@@ -158,10 +158,6 @@ if (!$user) {
 
 $accessQrGroup = ensure_qr_group((int) $user['id']);
 
-if (($accessQrGroup['payment_status'] ?? 'pending') !== 'paid') {
-    redirect_to('/billing.php');
-}
-
 function uploaded_file_at(array $files, int $index): array
 {
     return [
@@ -492,9 +488,18 @@ function qr_plan_type(array $qrGroup): string
     return ($qrGroup['plan_type'] ?? 'regular') === 'premium' ? 'premium' : 'regular';
 }
 
-function qr_plan_limits(array $qrGroup): array
+function memorial_plan_type(?array $memorial, ?array $qrGroup = null): string
 {
-    $isPremium = qr_plan_type($qrGroup) === 'premium';
+    if ($memorial && isset($memorial['plan_type'])) {
+        return $memorial['plan_type'] === 'premium' ? 'premium' : 'regular';
+    }
+
+    return $qrGroup ? qr_plan_type($qrGroup) : 'regular';
+}
+
+function plan_limits_for_type(string $planType): array
+{
+    $isPremium = $planType === 'premium';
 
     return [
         'profile_images' => 5,
@@ -506,9 +511,14 @@ function qr_plan_limits(array $qrGroup): array
     ];
 }
 
-function qr_additional_memorial_price(array $qrGroup): int
+function memorial_plan_limits(?array $memorial, ?array $qrGroup = null): array
 {
-    return qr_plan_type($qrGroup) === 'premium' ? 700 : 399;
+    return plan_limits_for_type(memorial_plan_type($memorial, $qrGroup));
+}
+
+function additional_memorial_price_for_type(string $planType): int
+{
+    return $planType === 'premium' ? 700 : 399;
 }
 
 function is_ajax_request(): bool
@@ -561,7 +571,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $formAction = clean_input($_POST['form_action'] ?? 'save_memorial');
     $memorialIdInput = (int) ($_POST['memorial_id'] ?? 0);
     $qrGroup = ensure_qr_group((int) $user['id']);
-    $planLimits = qr_plan_limits($qrGroup);
+    $planLimits = memorial_plan_limits(null, $qrGroup);
     $isAjax = is_ajax_request();
 
     if ($formAction === 'approve_message' || $formAction === 'delete_message') {
@@ -826,7 +836,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($formAction === 'save_milestone') {
         $milestoneIdInput = (int) ($_POST['milestone_id'] ?? 0);
-        $sortOrder = max(0, min($planLimits['milestones'] - 1, (int) ($_POST['sort_order'] ?? 0)));
+        $sortOrderInput = (int) ($_POST['sort_order'] ?? 0);
         $title = clean_input($_POST['title'] ?? '');
         $milestoneDate = clean_input($_POST['milestone_date'] ?? '');
         $description = clean_input($_POST['description'] ?? '');
@@ -843,19 +853,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             json_response(['ok' => false, 'message' => 'Milestone title is required.'], 422);
         }
 
-        if (strlen($description) > $planLimits['milestone_characters']) {
-            json_response([
-                'ok' => false,
-                'message' => 'Milestone description is limited to ' . $planLimits['milestone_characters'] . ' characters for this plan.',
-            ], 422);
-        }
-
         $stmt = $pdo->prepare('SELECT * FROM memorials WHERE id = ? AND user_id = ? AND qr_group_id = ? LIMIT 1');
         $stmt->execute([$memorialIdInput, (int) $user['id'], (int) $qrGroup['id']]);
         $targetMemorial = $stmt->fetch();
 
         if (!$targetMemorial) {
             json_response(['ok' => false, 'message' => 'Memorial not found.'], 404);
+        }
+
+        $planLimits = memorial_plan_limits($targetMemorial, $qrGroup);
+        $sortOrder = max(0, min($planLimits['milestones'] - 1, $sortOrderInput));
+
+        if (strlen($description) > $planLimits['milestone_characters']) {
+            json_response([
+                'ok' => false,
+                'message' => 'Milestone description is limited to ' . $planLimits['milestone_characters'] . ' characters for this plan.',
+            ], 422);
         }
 
         if ($milestoneIdInput > 0) {
@@ -902,7 +915,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $stmt = $pdo->prepare(
-            'SELECT m.*
+            'SELECT m.*, me.plan_type AS memorial_plan_type
              FROM milestones m
              INNER JOIN memorials me ON me.id = m.memorial_id
              WHERE m.id = ? AND me.user_id = ? AND me.qr_group_id = ?
@@ -964,6 +977,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
         }
 
+        $planLimits = plan_limits_for_type($targetMilestone['memorial_plan_type'] === 'premium' ? 'premium' : 'regular');
         $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM milestone_images WHERE milestone_id = ?');
         $existingCountStmt->execute([(int) $targetMilestone['id']]);
         $existingCount = (int) $existingCountStmt->fetchColumn();
@@ -1044,6 +1058,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             json_response(['ok' => false, 'message' => 'Save the memorial details first before uploading profile photos.'], 422);
         }
 
+        $planLimits = memorial_plan_limits($targetMemorial, $qrGroup);
         $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM memorial_images WHERE memorial_id = ? AND image_type = "profile"');
         $existingCountStmt->execute([(int) $targetMemorial['id']]);
         $existingCount = (int) $existingCountStmt->fetchColumn();
@@ -1114,6 +1129,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $themePrimary = clean_hex_color($_POST['theme_primary'] ?? '', '#214c63');
     $themeSecondary = clean_hex_color($_POST['theme_secondary'] ?? '', '#eadcc8');
     $themeTertiary = clean_hex_color($_POST['theme_tertiary'] ?? '', '#fbfaf7');
+    $selectedPlanType = clean_input($_POST['plan_type'] ?? 'regular');
+    $selectedPlanType = $selectedPlanType === 'premium' ? 'premium' : 'regular';
 
     if ($lovedOneName === '') {
         flash('error', 'Please enter the name of the loved one for the memorial profile.');
@@ -1130,11 +1147,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($memorial) {
             $memorialId = (int) $memorial['id'];
             $token = $memorial['public_token'];
+            $effectivePlanType = (($memorial['payment_status'] ?? 'pending') === 'paid')
+                ? memorial_plan_type($memorial, $qrGroup)
+                : $selectedPlanType;
+            $planLimits = plan_limits_for_type($effectivePlanType);
             $pdo->prepare(
                 'UPDATE memorials
-                 SET loved_one_name = ?, birth_date = ?, death_date = ?, resting_place = ?, resting_lat = ?, resting_lng = ?, memorial_quote = ?, favorite_song_url = ?, short_description = ?, theme_primary = ?, theme_secondary = ?, theme_tertiary = ?, status = "published"
+                 SET plan_type = ?, loved_one_name = ?, birth_date = ?, death_date = ?, resting_place = ?, resting_lat = ?, resting_lng = ?, memorial_quote = ?, favorite_song_url = ?, short_description = ?, theme_primary = ?, theme_secondary = ?, theme_tertiary = ?, status = "published"
                  WHERE id = ?'
             )->execute([
+                $effectivePlanType,
                 $lovedOneName,
                 $birthDate !== '' ? $birthDate : null,
                 $deathDate !== '' ? $deathDate : null,
@@ -1159,13 +1181,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $token = generate_token();
+            $effectivePlanType = $selectedPlanType;
+            $planLimits = plan_limits_for_type($effectivePlanType);
             $pdo->prepare(
                 'INSERT INTO memorials
-                 (user_id, qr_group_id, public_token, loved_one_name, birth_date, death_date, resting_place, resting_lat, resting_lng, memorial_quote, favorite_song_url, short_description, theme_primary, theme_secondary, theme_tertiary, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "published")'
+                 (user_id, qr_group_id, plan_type, public_token, loved_one_name, birth_date, death_date, resting_place, resting_lat, resting_lng, memorial_quote, favorite_song_url, short_description, theme_primary, theme_secondary, theme_tertiary, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "published")'
             )->execute([
                 (int) $user['id'],
                 (int) $qrGroup['id'],
+                $effectivePlanType,
                 $token,
                 $lovedOneName,
                 $birthDate !== '' ? $birthDate : null,
@@ -1255,7 +1280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $qrGroup = $accessQrGroup;
 $planType = qr_plan_type($qrGroup);
-$planLimits = qr_plan_limits($qrGroup);
+$planLimits = memorial_plan_limits(null, $qrGroup);
 $stmt = $pdo->prepare('SELECT * FROM memorials WHERE user_id = ? AND qr_group_id = ? ORDER BY id ASC');
 $stmt->execute([(int) $user['id'], (int) $qrGroup['id']]);
 $memorials = $stmt->fetchAll();
@@ -1277,6 +1302,12 @@ if (!$memorial && $memorials) {
 if (isset($_GET['new']) && count($memorials) < MAX_MEMORIALS_PER_QR) {
     $memorial = null;
 }
+
+$planType = memorial_plan_type($memorial, $qrGroup);
+$planLimits = memorial_plan_limits($memorial, $qrGroup);
+$firstMemorialId = $memorials ? (int) $memorials[0]['id'] : 0;
+$isCreatingAdditionalMemorial = !$memorial && count($memorials) > 0;
+$isCurrentMemorialAdditional = $isCreatingAdditionalMemorial || ($memorial && $firstMemorialId > 0 && (int) $memorial['id'] !== $firstMemorialId);
 
 $milestones = [];
 $milestoneImages = [];
@@ -1347,10 +1378,21 @@ if ($memorial) {
 }
 
 $flash = get_flash();
-$previewUrl = app_base_url() . '/memorial.php?t=' . urlencode($qrGroup['public_token']);
-$qrUrl = $previewUrl !== '' ? 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($previewUrl) : '';
-$additionalMemorialPrice = qr_additional_memorial_price($qrGroup);
-$additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
+$paidMemorials = array_values(array_filter(
+    $memorials,
+    static fn (array $item): bool => (($item['payment_status'] ?? 'pending') === 'paid')
+));
+$hasLiveMemorials = count($paidMemorials) > 0;
+$isCurrentMemorialPaid = $memorial && (($memorial['payment_status'] ?? 'pending') === 'paid');
+$publicUrl = rtrim(app_base_url(), '/') . '/memorial.php?t=' . urlencode($qrGroup['public_token']);
+$previewUrl = $publicUrl . '&preview=1';
+$qrUrl = $hasLiveMemorials ? 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($publicUrl) : '';
+$regularAdditionalPrice = additional_memorial_price_for_type('regular');
+$premiumAdditionalPrice = additional_memorial_price_for_type('premium');
+$additionalCost = 0;
+foreach (array_slice($memorials, 1) as $additionalMemorial) {
+    $additionalCost += additional_memorial_price_for_type(memorial_plan_type($additionalMemorial, $qrGroup));
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -1405,17 +1447,26 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
 
       <aside class="qr-panel">
         <h2>Family QR preview</h2>
-        <?php if ($qrUrl): ?>
-          <a class="qr-preview-link" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">
+        <?php if ($hasLiveMemorials && $qrUrl): ?>
+          <a class="qr-preview-link" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">
             <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
           </a>
-          <a class="button-primary" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Preview</a>
-          <p><?= count($memorials) ?> of <?= MAX_MEMORIALS_PER_QR ?> memorials in this QR. Extra <?= htmlspecialchars($planType, ENT_QUOTES, 'UTF-8') ?> memorials are PHP <?= number_format($additionalMemorialPrice) ?> each.</p>
+          <a class="button-primary" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Live Memorial</a>
+          <a class="button-secondary" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
+          <p><?= count($paidMemorials) ?> paid of <?= count($memorials) ?> prepared memorials in this QR. Additional memorials are PHP <?= number_format($regularAdditionalPrice) ?> for Standard or PHP <?= number_format($premiumAdditionalPrice) ?> for Premium.</p>
           <?php if ($additionalCost > 0): ?>
             <p>Additional memorial total: PHP <?= number_format($additionalCost) ?> per year.</p>
           <?php endif; ?>
+          <?php if ($memorial && !$isCurrentMemorialPaid): ?>
+            <a class="button-success" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>">Activate this memorial</a>
+          <?php endif; ?>
         <?php else: ?>
-          <p>Save the memorial details first to generate a QR preview.</p>
+          <p>Your private preview is ready while payment is pending. The public QR code will be generated after activation.</p>
+          <a class="button-primary" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
+          <?php if ($memorial): ?>
+            <a class="button-success" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>">Complete payment</a>
+          <?php endif; ?>
+          <p><?= count($memorials) ?> of <?= MAX_MEMORIALS_PER_QR ?> memorials prepared for this QR.</p>
         <?php endif; ?>
       </aside>
 
@@ -1424,7 +1475,7 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
           <h2>Memorials in this QR</h2>
           <p>
             One QR can include up to <?= MAX_MEMORIALS_PER_QR ?> memorial pages.
-            Each additional <?= htmlspecialchars($planType, ENT_QUOTES, 'UTF-8') ?> memorial is PHP <?= number_format($additionalMemorialPrice) ?> per year.
+            Additional memorials can be Standard at PHP <?= number_format($regularAdditionalPrice) ?> or Premium at PHP <?= number_format($premiumAdditionalPrice) ?> per year.
           </p>
           <?php if ($memorials): ?>
             <div class="dashboard-memorial-list">
@@ -1444,6 +1495,18 @@ $additionalCost = max(0, count($memorials) - 1) * $additionalMemorialPrice;
           <h2>Memorial Profile</h2>
           <input type="hidden" name="memorial_id" value="<?= isset($_GET['new']) ? 0 : (int) ($memorial['id'] ?? 0) ?>">
           <div class="form-grid">
+            <label>
+              Memorial plan
+              <select name="plan_type" <?= $isCurrentMemorialPaid ? 'disabled' : '' ?>>
+                <option value="regular" <?= $planType === 'regular' ? 'selected' : '' ?>>Standard - PHP <?= number_format($isCurrentMemorialAdditional ? $regularAdditionalPrice : 599) ?> / year</option>
+                <option value="premium" <?= $planType === 'premium' ? 'selected' : '' ?>>Premium - PHP <?= number_format($isCurrentMemorialAdditional ? $premiumAdditionalPrice : 999) ?> / year</option>
+              </select>
+              <?php if ($isCurrentMemorialPaid): ?>
+                <span class="field-note">Paid memorial plans are locked. Create a new memorial if you need a different plan.</span>
+              <?php else: ?>
+                <span class="field-note">Choose the plan for this memorial before payment activation.</span>
+              <?php endif; ?>
+            </label>
             <label>
               Loved one's full name
               <input type="text" name="loved_one_name" value="<?= htmlspecialchars($memorial['loved_one_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>" required>

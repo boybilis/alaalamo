@@ -12,25 +12,34 @@ if ($token === '' || !preg_match('/^[a-f0-9]{64}$/', $token)) {
 
 $pdo = db();
 $stmt = $pdo->prepare(
-    'SELECT qg.*, u.email, u.given_name, u.last_name
-     FROM qr_groups qg
-     INNER JOIN users u ON u.id = qg.user_id
-     WHERE qg.payment_approval_token = ?
+    'SELECT m.*, u.email, u.given_name, u.last_name, qg.id AS qr_group_id, qg.payment_status AS qr_group_payment_status
+     FROM memorials m
+     INNER JOIN users u ON u.id = m.user_id
+     LEFT JOIN qr_groups qg ON qg.id = m.qr_group_id
+     WHERE m.payment_approval_token = ?
      LIMIT 1'
 );
 $stmt->execute([$token]);
-$qrGroup = $stmt->fetch();
+$memorial = $stmt->fetch();
 
-if (!$qrGroup) {
+if (!$memorial) {
     http_response_code(404);
     exit('Payment approval link was not found.');
 }
 
 $pdo->prepare(
-    'UPDATE qr_groups
+    'UPDATE memorials
      SET payment_status = "paid", paid_at = COALESCE(paid_at, NOW())
      WHERE id = ?'
-)->execute([(int) $qrGroup['id']]);
+)->execute([(int) $memorial['id']]);
+
+if (!empty($memorial['qr_group_id'])) {
+    $pdo->prepare(
+        'UPDATE qr_groups
+         SET payment_status = "paid", paid_at = COALESCE(paid_at, NOW())
+         WHERE id = ? AND payment_status <> "paid"'
+    )->execute([(int) $memorial['qr_group_id']]);
+}
 
 ?>
 <!doctype html>
@@ -48,8 +57,8 @@ $pdo->prepare(
         <span class="brand-highlight">AlaalaMo</span>
       </a>
       <h1>Payment approved</h1>
-      <p><?= htmlspecialchars(($qrGroup['given_name'] ?? '') . ' ' . ($qrGroup['last_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?> can now access the AlaalaMo dashboard.</p>
-      <p class="auth-alert auth-alert-success">Account activated successfully.</p>
+      <p><?= htmlspecialchars(($memorial['given_name'] ?? '') . ' ' . ($memorial['last_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?> can now publish <?= htmlspecialchars((string) $memorial['loved_one_name'], ENT_QUOTES, 'UTF-8') ?>.</p>
+      <p class="auth-alert auth-alert-success">Memorial activated successfully.</p>
     </main>
   </body>
 </html>

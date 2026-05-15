@@ -181,9 +181,18 @@ function qr_plan_type(?array $qrGroup): string
     return (($qrGroup['plan_type'] ?? 'regular') === 'premium') ? 'premium' : 'regular';
 }
 
-function qr_plan_limits(?array $qrGroup): array
+function memorial_plan_type(?array $memorial, ?array $qrGroup = null): string
 {
-    $isPremium = qr_plan_type($qrGroup) === 'premium';
+    if ($memorial && isset($memorial['plan_type'])) {
+        return $memorial['plan_type'] === 'premium' ? 'premium' : 'regular';
+    }
+
+    return qr_plan_type($qrGroup);
+}
+
+function plan_limits_for_type(string $planType): array
+{
+    $isPremium = $planType === 'premium';
 
     return [
         'gallery_images' => $isPremium ? 20 : 6,
@@ -191,6 +200,11 @@ function qr_plan_limits(?array $qrGroup): array
         'milestone_images' => $isPremium ? 6 : 2,
         'life_story' => $isPremium,
     ];
+}
+
+function memorial_plan_limits(?array $memorial, ?array $qrGroup = null): array
+{
+    return plan_limits_for_type(memorial_plan_type($memorial, $qrGroup));
 }
 
 function cloudinary_optimized_image_url(string $imageUrl): string
@@ -334,6 +348,35 @@ function safe_delete_temp_upload(?string $relativePath): void
     }
 }
 
+function render_unavailable_memorial(): never
+{
+    http_response_code(503);
+    ?>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <title>Memorial Unavailable | AlaalaMo</title>
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260515-02') ?>">
+  </head>
+  <body class="auth-page">
+    <main class="auth-card">
+      <a class="brand auth-brand" href="/">
+        <span class="brand-mark" aria-hidden="true">A</span>
+        <span class="brand-highlight">AlaalaMo</span>
+      </a>
+      <p class="section-eyebrow">Memorial notice</p>
+      <h1>This memorial is currently unavailable.</h1>
+      <p>The memorial you are viewing will be back soon after the family completes activation.</p>
+    </main>
+  </body>
+</html>
+    <?php
+    exit;
+}
+
 $pdo = db();
 $stmt = $pdo->prepare('SELECT * FROM qr_groups WHERE public_token = ? LIMIT 1');
 $stmt->execute([$token]);
@@ -341,16 +384,21 @@ $qrGroup = $stmt->fetch();
 
 $memorials = [];
 $isGroupView = false;
+$isPrivatePreview = false;
 
 if ($qrGroup) {
-    $stmt = $pdo->prepare('SELECT * FROM memorials WHERE qr_group_id = ? AND status = "published" ORDER BY id ASC');
+    $isPrivatePreview = isset($_GET['preview'])
+        && !empty($_SESSION['user_id'])
+        && (int) $_SESSION['user_id'] === (int) $qrGroup['user_id'];
+
+    $paymentFilter = $isPrivatePreview ? '' : ' AND payment_status = "paid"';
+    $stmt = $pdo->prepare('SELECT * FROM memorials WHERE qr_group_id = ? AND status = "published"' . $paymentFilter . ' ORDER BY id ASC');
     $stmt->execute([(int) $qrGroup['id']]);
     $memorials = $stmt->fetchAll();
     $isGroupView = count($memorials) > 1;
 
     if (!$memorials) {
-        http_response_code(404);
-        exit('Memorial not found.');
+        render_unavailable_memorial();
     }
 
     $memorial = $memorials[0];
@@ -363,22 +411,46 @@ if ($qrGroup) {
         http_response_code(404);
         exit('Memorial not found.');
     }
+
+    $isPrivatePreview = isset($_GET['preview'])
+        && !empty($_SESSION['user_id'])
+        && (int) $_SESSION['user_id'] === (int) $memorial['user_id'];
+
+    if (($memorial['payment_status'] ?? 'pending') !== 'paid' && !$isPrivatePreview) {
+        render_unavailable_memorial();
+    }
+
+    if (!empty($memorial['qr_group_id'])) {
+        $stmt = $pdo->prepare('SELECT * FROM qr_groups WHERE id = ? LIMIT 1');
+        $stmt->execute([(int) $memorial['qr_group_id']]);
+        $memorialQrGroup = $stmt->fetch();
+
+        if ($memorialQrGroup) {
+            $qrGroupForLimits = $memorialQrGroup;
+        }
+    }
 }
 
 $selectedId = (int) ($_GET['m'] ?? $_POST['memorial_id'] ?? 0);
 
 if ($selectedId > 0 && $qrGroup) {
+    $selectedMemorialFound = false;
     foreach ($memorials as $candidate) {
         if ((int) $candidate['id'] === $selectedId) {
             $memorial = $candidate;
             $isGroupView = false;
+            $selectedMemorialFound = true;
             break;
         }
+    }
+
+    if (!$selectedMemorialFound && !$isPrivatePreview) {
+        render_unavailable_memorial();
     }
 }
 
 $themeStyle = memorial_theme_style($memorial);
-$planLimits = qr_plan_limits($qrGroup ?: null);
+$planLimits = memorial_plan_limits($memorial, $qrGroup ?: ($qrGroupForLimits ?? null));
 $restingMapsUrl = memorial_coordinate_url($memorial);
 $favoriteSongUrl = trim((string) ($memorial['favorite_song_url'] ?? ''));
 
@@ -632,7 +704,7 @@ if ($isGroupView): ?>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260515-01') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260515-02') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mobile-memorial-group">
@@ -669,7 +741,9 @@ if ($isGroupView): ?>
                   $imageStmt->execute([(int) $item['id']]);
                   $image = $imageStmt->fetchColumn();
               }
-              $itemUrl = 'memorial.php?t=' . urlencode($token) . '&m=' . (int) $item['id'];
+              $itemUrl = 'memorial.php?t=' . urlencode($token)
+                  . ($isPrivatePreview ? '&preview=1' : '')
+                  . '&m=' . (int) $item['id'];
             ?>
             <a class="memorial-select-card" href="<?= htmlspecialchars($itemUrl, ENT_QUOTES, 'UTF-8') ?>">
               <?php if ($image): ?>
@@ -770,7 +844,7 @@ $messageFlash = get_flash();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260515-01') ?>">
+    <link rel="stylesheet" href="styles.css?v=<?= urlencode(defined('ASSET_VERSION') ? ASSET_VERSION : '20260515-02') ?>">
   </head>
   <body class="memorial-preview-page" style="<?= $themeStyle ?>">
     <main class="mobile-memorial mx-auto" style="<?= $themeStyle ?>">

@@ -1930,9 +1930,9 @@ a.memorial-resting-place:hover {
 }
 
 .preview-milestone-head {
-  border-bottom: 1px solid color-mix(in srgb, var(--memorial-secondary) 48%, rgba(31, 41, 51, 0.1));
-  background: color-mix(in srgb, var(--memorial-secondary) 22%, rgba(255, 255, 255, 0.52));
-  color: var(--memorial-tertiary-text);
+  border-bottom: 1px solid color-mix(in srgb, var(--memorial-primary) 38%, rgba(31, 41, 51, 0.14));
+  background: var(--memorial-secondary);
+  color: var(--memorial-secondary-text);
 }
 
 .preview-milestone-body p {
@@ -1988,7 +1988,7 @@ a.memorial-resting-place:hover {
 }
 
 .preview-milestone span {
-  color: var(--memorial-tertiary-text);
+  color: var(--memorial-secondary-text);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -1997,10 +1997,14 @@ a.memorial-resting-place:hover {
 
 .preview-milestone h3 {
   margin: 6px 0 0;
-  color: var(--memorial-tertiary-text);
+  color: var(--memorial-secondary-text);
   font-size: 18px;
   font-weight: 800;
   line-height: 1.25;
+}
+
+.preview-milestone.is-in-view .preview-milestone-head {
+  background: color-mix(in srgb, var(--memorial-secondary) 86%, var(--memorial-primary) 14%);
 }
 
 .preview-milestone.is-playing .preview-milestone-head,
