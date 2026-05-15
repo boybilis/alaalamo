@@ -915,6 +915,12 @@ h2 {
   font: inherit;
 }
 
+.auth-form input[type="file"] {
+  min-height: auto;
+  padding: 12px 14px;
+  line-height: 1.4;
+}
+
 .auth-alert {
   padding: 12px 14px;
   border-radius: 8px;

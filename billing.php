@@ -46,7 +46,40 @@ function billing_memorial_price(array $memorial, array $qrGroup, bool $isAdditio
     return $isAdditional ? billing_additional_memorial_price($planType) : billing_plan_price($planType);
 }
 
-function send_payment_review_email(array $user, array $qrGroup, array $memorial, bool $isAdditional): bool
+function validate_payment_proof_upload(array $file): ?string
+{
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return 'Please attach your GCash payment screenshot before requesting activation.';
+    }
+
+    if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+        return 'The payment screenshot could not be uploaded. Please try again.';
+    }
+
+    if (($file['size'] ?? 0) <= 0) {
+        return 'The attached payment screenshot appears to be empty.';
+    }
+
+    if (($file['size'] ?? 0) > 5 * 1024 * 1024) {
+        return 'The payment screenshot must be 5MB or smaller.';
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mimeType = $finfo->file((string) ($file['tmp_name'] ?? ''));
+    $allowedTypes = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+    ];
+
+    if (!in_array($mimeType, $allowedTypes, true)) {
+        return 'Please upload a JPG, PNG, or WebP screenshot for the payment proof.';
+    }
+
+    return null;
+}
+
+function send_payment_review_email(array $user, array $qrGroup, array $memorial, bool $isAdditional, array $paymentProof): bool
 {
     $autoloadPath = __DIR__ . '/vendor/autoload.php';
 
@@ -102,6 +135,10 @@ function send_payment_review_email(array $user, array $qrGroup, array $memorial,
         $mail->isHTML(true);
         $mail->Body = $html;
         $mail->AltBody = $plainText;
+        $mail->addAttachment(
+            (string) $paymentProof['tmp_name'],
+            (string) ($paymentProof['name'] ?? ('payment-proof-' . (int) $memorial['id'] . '.jpg'))
+        );
 
         return $mail->send();
     } catch (MailException $exception) {
@@ -161,23 +198,28 @@ $firstStmt->execute([(int) $qrGroup['id']]);
 $isAdditional = (int) $firstStmt->fetchColumn() !== (int) $memorial['id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $paymentProof = $_FILES['payment_proof'] ?? [];
+    $proofError = validate_payment_proof_upload($paymentProof);
+
+    if ($proofError !== null) {
+        flash('error', $proofError);
+        redirect_to('/billing.php?memorial_id=' . (int) $memorial['id']);
+    }
+
     $approvalToken = (string) ($memorial['payment_approval_token'] ?? '');
 
     if ($approvalToken === '') {
         $approvalToken = generate_token();
     }
 
-    $pdo->prepare(
-        'UPDATE memorials
-         SET payment_status = "review", payment_requested_at = NOW(), payment_approval_token = ?
-         WHERE id = ?'
-    )->execute([$approvalToken, (int) $memorial['id']]);
+    $memorial['payment_approval_token'] = $approvalToken;
 
-    $stmt = $pdo->prepare('SELECT * FROM memorials WHERE id = ? LIMIT 1');
-    $stmt->execute([(int) $memorial['id']]);
-    $memorial = $stmt->fetch();
-
-    if (send_payment_review_email($user, $qrGroup, $memorial, $isAdditional)) {
+    if (send_payment_review_email($user, $qrGroup, $memorial, $isAdditional, $paymentProof)) {
+        $pdo->prepare(
+            'UPDATE memorials
+             SET payment_status = "review", payment_requested_at = NOW(), payment_approval_token = ?
+             WHERE id = ?'
+        )->execute([$approvalToken, (int) $memorial['id']]);
         flash('success', 'Payment review request sent. We will activate this memorial after confirmation.');
     } else {
         flash('error', 'Your request was saved, but the review email could not be sent. Please contact AlaalaMo support.');
@@ -222,9 +264,14 @@ $flash = get_flash();
         <p><strong>Status:</strong> <?= htmlspecialchars(ucfirst((string) ($memorial['payment_status'] ?? 'pending')), ENT_QUOTES, 'UTF-8') ?></p>
       </div>
       <p class="field-note">After sending payment through GCash, click the button below so AlaalaMo can review and activate this memorial.</p>
-      <form class="auth-form" method="post" action="billing.php">
+      <form class="auth-form" method="post" enctype="multipart/form-data" action="billing.php">
         <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
         <input type="hidden" name="requested_plan" value="<?= htmlspecialchars((string) ($memorial['plan_type'] ?? 'regular'), ENT_QUOTES, 'UTF-8') ?>">
+        <label>
+          GCash payment screenshot
+          <input type="file" name="payment_proof" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" required>
+          <span class="field-note">Attach a clear screenshot of your GCash reference before requesting activation.</span>
+        </label>
         <button class="button-success" type="submit">I have paid. Request activation.</button>
       </form>
       <a class="auth-link" href="/dashboard.php?memorial_id=<?= (int) $memorial['id'] ?>">Back to dashboard</a>
