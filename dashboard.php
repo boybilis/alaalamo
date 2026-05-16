@@ -2127,11 +2127,25 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
               <?= htmlspecialchars(count($memorials) > 1 ? 'Family Remembrance' : (trim((string) ($memorial['loved_one_name'] ?? 'Memorial Profile')) !== '' ? (string) $memorial['loved_one_name'] : 'Memorial Profile'), ENT_QUOTES, 'UTF-8') ?>
             </p>
           </div>
+          <div class="qr-print-card" data-qr-print-card aria-hidden="true">
+            <div class="qr-print-brand">
+              <span class="brand-mark" aria-hidden="true">
+                <img class="brand-mark-image" src="assets/alaalamo-logo-mark.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time())) ?>" alt="">
+              </span>
+              <span class="brand-highlight">AlaalaMo</span>
+            </div>
+            <div class="qr-print-shell">
+              <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
+            </div>
+            <p class="qr-print-title">
+              <?= htmlspecialchars(count($memorials) > 1 ? 'Family Remembrance' : (trim((string) ($memorial['loved_one_name'] ?? 'Memorial Profile')) !== '' ? (string) $memorial['loved_one_name'] : 'Memorial Profile'), ENT_QUOTES, 'UTF-8') ?>
+            </p>
+          </div>
           <div class="qr-actions-card">
             <div class="qr-panel-actions">
               <a class="button-primary" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Live Memorial</a>
               <a class="button-info" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
-              <a class="button-secondary qr-download-button" href="<?= htmlspecialchars($qrDownloadUrl, ENT_QUOTES, 'UTF-8') ?>">Download QR Card</a>
+              <a class="button-secondary qr-download-button" href="<?= htmlspecialchars($qrDownloadUrl, ENT_QUOTES, 'UTF-8') ?>" data-download-qr data-download-name="<?= htmlspecialchars($downloadFilename, ENT_QUOTES, 'UTF-8') ?>">Download QR Card</a>
             </div>
             <p><?= count($paidMemorials) ?> paid of <?= count($memorials) ?> prepared memorials in this QR. Additional memorials are PHP <?= number_format($regularAdditionalPrice) ?> for Standard or PHP <?= number_format($premiumAdditionalPrice) ?> for Premium.</p>
             <?php if ($additionalCost > 0): ?>
@@ -2612,6 +2626,7 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
         </div>
       </div>
     <?php endif; ?>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script>
       $(function () {
@@ -3444,6 +3459,54 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
             window.setTimeout(function () {
               $button.text('Copy link');
             }, 1600);
+          }
+        });
+
+        $('[data-download-qr]').on('click', async function (event) {
+          const printCard = document.querySelector('[data-qr-print-card]');
+
+          if (!printCard || typeof window.html2canvas !== 'function') {
+            return;
+          }
+
+          event.preventDefault();
+
+          const button = event.currentTarget;
+          const originalText = button.textContent;
+          const fileBase = String(button.getAttribute('data-download-name') || 'AlaalaMo-QR')
+            .trim()
+            .replace(/[^a-z0-9_-]+/gi, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '') || 'AlaalaMo-QR';
+
+          button.textContent = 'Preparing...';
+          button.style.pointerEvents = 'none';
+
+          try {
+            const canvas = await window.html2canvas(printCard, {
+              backgroundColor: '#f5f3ef',
+              scale: 3,
+              useCORS: true,
+              logging: false,
+              width: 600,
+              height: 900,
+            });
+
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL('image/png');
+            link.download = fileBase + '.png';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            button.textContent = 'Downloaded';
+          } catch (error) {
+            console.error(error);
+            button.textContent = 'Download failed';
+          } finally {
+            window.setTimeout(function () {
+              button.textContent = originalText;
+              button.style.pointerEvents = '';
+            }, 1400);
           }
         });
 
