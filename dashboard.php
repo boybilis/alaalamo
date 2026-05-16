@@ -43,6 +43,43 @@ function clean_optional_url(string $value): ?string
     return in_array($scheme, ['http', 'https'], true) ? $url : null;
 }
 
+function normalize_referral_code(string $value): string
+{
+    $value = strtoupper(trim($value));
+
+    return preg_replace('/[^A-Z0-9\-]/', '', $value) ?? '';
+}
+
+function generate_unique_user_referral_code(PDO $pdo): string
+{
+    for ($i = 0; $i < 12; $i++) {
+        $candidate = 'ALM' . strtoupper(bin2hex(random_bytes(3)));
+        $stmt = $pdo->prepare('SELECT id FROM users WHERE referral_code = ? LIMIT 1');
+        $stmt->execute([$candidate]);
+
+        if (!$stmt->fetchColumn()) {
+            return $candidate;
+        }
+    }
+
+    return 'ALM' . strtoupper(bin2hex(random_bytes(4)));
+}
+
+function ensure_user_referral_code(PDO $pdo, int $userId, ?string $existingCode = null): string
+{
+    $existingCode = normalize_referral_code((string) $existingCode);
+
+    if ($existingCode !== '') {
+        return $existingCode;
+    }
+
+    $code = generate_unique_user_referral_code($pdo);
+    $pdo->prepare('UPDATE users SET referral_code = ? WHERE id = ?')
+        ->execute([$code, $userId]);
+
+    return $code;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
     $postMaxBytes = ini_bytes((string) ini_get('post_max_size'));
 
@@ -156,6 +193,7 @@ if (!$user) {
     redirect_to('/login.php');
 }
 
+$user['referral_code'] = ensure_user_referral_code($pdo, (int) $user['id'], $user['referral_code'] ?? null);
 $accessQrGroup = ensure_qr_group((int) $user['id']);
 
 if (isset($_GET['psgc_lookup'])) {
@@ -853,6 +891,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $qrGroup = ensure_qr_group((int) $user['id']);
     $planLimits = memorial_plan_limits(null, $qrGroup);
     $isAjax = is_ajax_request();
+
+    if ($formAction === 'activate_with_voucher') {
+        $voucherCode = normalize_referral_code((string) ($_POST['voucher_code'] ?? ''));
+
+        if ($memorialIdInput <= 0) {
+            flash('error', 'Please select a memorial first.');
+            redirect_to('/dashboard.php');
+        }
+
+        if ($voucherCode === '') {
+            flash('error', 'Please enter your Premium voucher code.');
+            redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
+        }
+
+        $stmt = $pdo->prepare('SELECT * FROM memorials WHERE id = ? AND user_id = ? AND qr_group_id = ? LIMIT 1');
+        $stmt->execute([$memorialIdInput, (int) $user['id'], (int) $qrGroup['id']]);
+        $voucherMemorial = $stmt->fetch();
+
+        if (!$voucherMemorial) {
+            flash('error', 'Memorial not found.');
+            redirect_to('/dashboard.php');
+        }
+
+        if (($voucherMemorial['payment_status'] ?? 'pending') === 'paid') {
+            flash('info', 'This memorial is already activated.');
+            redirect_to('/dashboard.php?memorial_id=' . (int) $voucherMemorial['id']);
+        }
+
+        $stmt = $pdo->prepare(
+            'SELECT * FROM referral_vouchers
+             WHERE user_id = ? AND voucher_code = ? AND redeemed_at IS NULL
+             LIMIT 1'
+        );
+        $stmt->execute([(int) $user['id'], $voucherCode]);
+        $voucher = $stmt->fetch();
+
+        if (!$voucher) {
+            flash('error', 'That voucher code is invalid or has already been used.');
+            redirect_to('/dashboard.php?memorial_id=' . (int) $voucherMemorial['id']);
+        }
+
+        $pdo->beginTransaction();
+
+        try {
+            $pdo->prepare(
+                'UPDATE memorials
+                 SET plan_type = "premium", payment_status = "paid", paid_at = COALESCE(paid_at, NOW())
+                 WHERE id = ?'
+            )->execute([(int) $voucherMemorial['id']]);
+
+            $pdo->prepare(
+                'UPDATE referral_vouchers
+                 SET redeemed_memorial_id = ?, redeemed_at = NOW()
+                 WHERE id = ?'
+            )->execute([(int) $voucherMemorial['id'], (int) $voucher['id']]);
+
+            if (!empty($voucherMemorial['qr_group_id'])) {
+                $pdo->prepare(
+                    'UPDATE qr_groups
+                     SET payment_status = "paid", paid_at = COALESCE(paid_at, NOW())
+                     WHERE id = ? AND payment_status <> "paid"'
+                )->execute([(int) $voucherMemorial['qr_group_id']]);
+            }
+
+            $pdo->commit();
+            flash('success', 'Premium voucher applied. This memorial is now activated.');
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            flash('error', 'Voucher activation could not be completed. Please try again.');
+        }
+
+        redirect_to('/dashboard.php?memorial_id=' . (int) $voucherMemorial['id']);
+    }
 
     if ($formAction === 'approve_message' || $formAction === 'delete_message') {
         $messageId = (int) ($_POST['message_id'] ?? 0);
@@ -1669,6 +1783,20 @@ $stmt = $pdo->prepare('SELECT * FROM memorials WHERE user_id = ? AND qr_group_id
 $stmt->execute([(int) $user['id'], (int) $qrGroup['id']]);
 $memorials = $stmt->fetchAll();
 
+$qualifiedReferralCountStmt = $pdo->prepare(
+    'SELECT COUNT(*) FROM users WHERE referred_by_user_id = ? AND referral_paid_qualified_at IS NOT NULL'
+);
+$qualifiedReferralCountStmt->execute([(int) $user['id']]);
+$qualifiedReferralCount = (int) $qualifiedReferralCountStmt->fetchColumn();
+$earnedPremiumVouchers = intdiv($qualifiedReferralCount, 5);
+$referredUsersToNextVoucher = $qualifiedReferralCount % 5 === 0 ? 5 : 5 - ($qualifiedReferralCount % 5);
+$referralShareLink = rtrim(app_base_url(), '/') . '/?ref=' . urlencode((string) $user['referral_code']);
+$availableVoucherCountStmt = $pdo->prepare(
+    'SELECT COUNT(*) FROM referral_vouchers WHERE user_id = ? AND redeemed_at IS NULL'
+);
+$availableVoucherCountStmt->execute([(int) $user['id']]);
+$availableVoucherCount = (int) $availableVoucherCountStmt->fetchColumn();
+
 $selectedMemorialId = (int) ($_GET['memorial_id'] ?? 0);
 $memorial = null;
 
@@ -1829,6 +1957,44 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
           Milestone text limit: <?= $planLimits['milestone_characters'] ?> characters.
         </p>
 
+        <div class="referral-panel">
+          <div class="referral-panel-head">
+            <div>
+              <p class="section-eyebrow">Referral promo</p>
+              <h2>Share your code and earn a free Premium voucher.</h2>
+            </div>
+            <p>
+              Refer 5 paid users through your AlaalaMo referral link and earn 1 free Premium voucher.
+            </p>
+          </div>
+          <div class="referral-stats">
+            <article>
+              <strong><?= htmlspecialchars((string) $user['referral_code'], ENT_QUOTES, 'UTF-8') ?></strong>
+              <span>Your referral code</span>
+            </article>
+            <article>
+              <strong><?= $qualifiedReferralCount ?></strong>
+              <span>Paid users referred</span>
+            </article>
+            <article>
+              <strong><?= $earnedPremiumVouchers ?></strong>
+              <span>Free Premium vouchers earned</span>
+            </article>
+            <article>
+              <strong><?= $availableVoucherCount ?></strong>
+              <span>Unused Premium vouchers</span>
+            </article>
+          </div>
+          <label class="form-full referral-share-field">
+            Registration link
+            <div class="referral-link-row">
+              <input type="text" value="<?= htmlspecialchars($referralShareLink, ENT_QUOTES, 'UTF-8') ?>" readonly data-referral-link>
+              <button class="button-secondary" type="button" data-copy-referral>Copy link</button>
+            </div>
+            <span class="field-note">Need <?= $referredUsersToNextVoucher ?> more paid referral<?= $referredUsersToNextVoucher === 1 ? '' : 's' ?> for your next free Premium voucher.</span>
+          </label>
+        </div>
+
         <?php if ($flash): ?>
           <p class="auth-alert auth-alert-<?= htmlspecialchars($flash['type'], ENT_QUOTES, 'UTF-8') ?>">
             <?= htmlspecialchars($flash['message'], ENT_QUOTES, 'UTF-8') ?>
@@ -1870,9 +2036,19 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
               <?php endif; ?>
             </div>
           <?php endif; ?>
-          <?php if ($memorial && !$isCurrentMemorialPaid): ?>
-            <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link>Activate this memorial</a>
-          <?php endif; ?>
+            <?php if ($memorial && !$isCurrentMemorialPaid): ?>
+              <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link>Activate this memorial</a>
+              <form class="voucher-activation-form" method="post" action="/dashboard.php?memorial_id=<?= (int) $memorial['id'] ?>">
+                <input type="hidden" name="form_action" value="activate_with_voucher">
+                <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+                <label>
+                  Premium voucher code
+                  <input type="text" name="voucher_code" autocomplete="off" placeholder="Enter voucher code" required>
+                </label>
+                <button class="button-secondary" type="submit">Activate Account Using Voucher</button>
+                <span class="field-note"><?= $availableVoucherCount > 0 ? $availableVoucherCount . ' unused Premium voucher' . ($availableVoucherCount === 1 ? '' : 's') . ' available on this account.' : 'Voucher codes are emailed after every 5 qualified paid referrals.' ?></span>
+              </form>
+            <?php endif; ?>
         <?php else: ?>
           <p>Your private preview is ready while payment is pending. The public QR code will be generated after activation.</p>
           <div class="qr-panel-actions">
@@ -1886,9 +2062,19 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
               <?php endif; ?>
             </div>
           <?php endif; ?>
-          <?php if ($memorial): ?>
-            <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link>Complete payment</a>
-          <?php endif; ?>
+            <?php if ($memorial): ?>
+              <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link>Complete payment</a>
+              <form class="voucher-activation-form" method="post" action="/dashboard.php?memorial_id=<?= (int) $memorial['id'] ?>">
+                <input type="hidden" name="form_action" value="activate_with_voucher">
+                <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+                <label>
+                  Premium voucher code
+                  <input type="text" name="voucher_code" autocomplete="off" placeholder="Enter voucher code" required>
+                </label>
+                <button class="button-secondary" type="submit">Activate Account Using Voucher</button>
+                <span class="field-note"><?= $availableVoucherCount > 0 ? $availableVoucherCount . ' unused Premium voucher' . ($availableVoucherCount === 1 ? '' : 's') . ' available on this account.' : 'Voucher codes are emailed after every 5 qualified paid referrals.' ?></span>
+              </form>
+            <?php endif; ?>
           <p><?= count($memorials) ?> of <?= MAX_MEMORIALS_PER_QR ?> memorials prepared for this QR.</p>
         <?php endif; ?>
       </aside>
@@ -3100,6 +3286,35 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
         $('select[name="plan_type"]').on('change', function () {
           refreshPlanAwareNotes();
           collapseUnusedMilestoneBoxes();
+        });
+
+        $('[data-copy-referral]').on('click', async function () {
+          const $button = $(this);
+          const $input = $('[data-referral-link]');
+          const link = $input.val();
+
+          if (!link) {
+            return;
+          }
+
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(String(link));
+            } else {
+              $input.trigger('focus').trigger('select');
+              document.execCommand('copy');
+            }
+
+            $button.text('Copied');
+            window.setTimeout(function () {
+              $button.text('Copy link');
+            }, 1600);
+          } catch (error) {
+            $button.text('Copy failed');
+            window.setTimeout(function () {
+              $button.text('Copy link');
+            }, 1600);
+          }
         });
 
         refreshPlanAwareNotes();

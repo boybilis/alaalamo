@@ -1238,6 +1238,94 @@ h2 {
   line-height: 1.6;
 }
 
+.referral-panel {
+  display: grid;
+  gap: 18px;
+  margin: 22px 0 8px;
+  padding: 22px;
+  border: 1px solid rgba(33, 76, 99, 0.12);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(245, 238, 228, 0.92) 0%, rgba(255, 255, 255, 0.96) 100%);
+}
+
+.referral-panel-head {
+  display: grid;
+  gap: 10px;
+}
+
+.referral-panel-head h2 {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.referral-panel-head p {
+  margin: 0;
+}
+
+.referral-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.referral-stats article {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid rgba(33, 76, 99, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.referral-stats strong {
+  color: var(--accent-dark);
+  font-size: clamp(20px, 3vw, 28px);
+  line-height: 1;
+}
+
+.referral-stats span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.referral-share-field {
+  display: grid;
+  gap: 10px;
+}
+
+.referral-link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.referral-link-row input[readonly] {
+  background: #fffdf9;
+}
+
+.voucher-activation-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid rgba(33, 76, 99, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.voucher-activation-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .dashboard-guide {
   margin-top: 24px;
   padding: 20px;
@@ -3007,6 +3095,8 @@ a.memorial-resting-place:hover {
   .dashboard-layout { width: calc(100% - 24px); }
   .form-grid { grid-template-columns: 1fr; }
   .theme-picker { grid-template-columns: 1fr; }
+  .referral-stats { grid-template-columns: 1fr; }
+  .referral-link-row { grid-template-columns: 1fr; }
   .location-pin-grid { grid-template-columns: 1fr; }
   .milestone-ai-panel { grid-template-columns: 1fr; }
   .milestone-ai-button { width: 100%; white-space: normal; }

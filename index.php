@@ -3,6 +3,12 @@ require_once __DIR__ . '/config.php';
 
 $pageTitle = 'AlaalaMo | Digital Memorial Space';
 $pageDescription = "A QR memorial to preserve the faces, stories, and memories that should not fade with time.";
+$signupReferralCode = '';
+
+if (isset($_GET['ref'])) {
+    $signupReferralCode = strtoupper(preg_replace('/[^A-Z0-9\-]/', '', trim((string) $_GET['ref'])) ?? '');
+}
+
 $navItems = [
     ['label' => 'What it does', 'href' => '#what-it-does'],
     ['label' => 'Live demo', 'href' => '#live-demo'],
@@ -372,6 +378,11 @@ $registrationFlash = get_flash();
                 <option value="regular">Standard - PHP 599 / year</option>
                 <option value="premium">Premium - PHP 999 / year</option>
               </select>
+            </label>
+            <label>
+              Referral code
+              <input type="text" name="referral_code" value="<?= htmlspecialchars($signupReferralCode, ENT_QUOTES, 'UTF-8') ?>" autocomplete="off" placeholder="Optional referral code">
+              <span class="field-note">Enter a valid referral code if someone invited you to AlaalaMo.</span>
             </label>
             <div class="signup-steps form-full" aria-label="Signup steps">
               <span><i class="fa-solid fa-user-plus" aria-hidden="true"></i> 1. Sign up</span>
