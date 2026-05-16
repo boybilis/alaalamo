@@ -1432,6 +1432,20 @@ h2 {
   margin-top: 12px;
 }
 
+.qr-panel .qr-download-button {
+  border-color: rgba(33, 76, 99, 0.16);
+  background: var(--beige);
+  color: var(--accent-dark);
+  box-shadow: 0 14px 30px rgba(33, 76, 99, 0.12);
+}
+
+.qr-panel .qr-download-button:hover,
+.qr-panel .qr-download-button:focus {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  color: var(--white);
+}
+
 .qr-panel img {
   width: 220px;
   max-width: 100%;

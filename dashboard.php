@@ -728,43 +728,38 @@ function output_branded_qr_download(string $qrDataUrl, string $title, string $fi
     $canvas = imagecreatetruecolor($width, $height);
 
     $paper = imagecolorallocate($canvas, 245, 243, 239);
-    $ink = imagecolorallocate($canvas, 20, 24, 28);
+    $ink = imagecolorallocate($canvas, 28, 32, 36);
     $white = imagecolorallocate($canvas, 255, 255, 255);
-    $shadow = imagecolorallocatealpha($canvas, 0, 0, 0, 108);
+    $grayBorder = imagecolorallocate($canvas, 128, 133, 138);
 
     imagefill($canvas, 0, 0, $paper);
-
-    imagefilledroundedrectangle($canvas, 44, 20, 556, 432, 20, $shadow);
-    imagefilledroundedrectangle($canvas, 36, 12, 548, 424, 20, $white);
-    imagefilledroundedrectangle($canvas, 44, 454, 556, 578, 18, $shadow);
-    imagefilledroundedrectangle($canvas, 36, 446, 548, 570, 18, $ink);
-
-    $qrSize = 404;
-    imagecopyresampled($canvas, $qrImage, 90, 22, 0, 0, $qrSize, $qrSize, imagesx($qrImage), imagesy($qrImage));
-    imagedestroy($qrImage);
 
     $logoPath = __DIR__ . '/assets/alaalamo-logo-mark.png';
     if (is_file($logoPath)) {
         $logoBinary = (string) @file_get_contents($logoPath);
         $logoImage = $logoBinary !== '' ? @imagecreatefromstring($logoBinary) : false;
         if ($logoImage) {
-            imagecopyresampled($canvas, $logoImage, 258, 190, 0, 0, 84, 84, imagesx($logoImage), imagesy($logoImage));
+            imagecopyresampled($canvas, $logoImage, 210, 18, 0, 0, 180, 180, imagesx($logoImage), imagesy($logoImage));
             imagedestroy($logoImage);
         }
     }
 
-    $title = trim($title) !== '' ? trim($title) : 'AlaalaMo Memorial';
-    $titleLines = explode("\n", wordwrap($title, 20, "\n", true));
-    $lineY = 476;
+    imagefilledroundedrectangle($canvas, 55, 186, 545, 474, 18, $grayBorder);
+    imagefilledroundedrectangle($canvas, 63, 194, 537, 466, 14, $white);
+
+    $qrSize = 438;
+    imagecopyresampled($canvas, $qrImage, 81, 211, 0, 0, $qrSize, $qrSize, imagesx($qrImage), imagesy($qrImage));
+    imagedestroy($qrImage);
+
+    $title = strtoupper(trim($title) !== '' ? trim($title) : 'AlaalaMo Memorial');
+    $titleLines = explode("\n", wordwrap($title, 22, "\n", true));
+    $lineY = 504;
     foreach ($titleLines as $line) {
         $lineWidth = imagefontwidth(5) * strlen($line);
-        $lineX = max(52, (int) (($width - $lineWidth) / 2));
-        imagestring($canvas, 5, $lineX, $lineY, $line, $white);
-        $lineY += 22;
+        $lineX = max(20, (int) (($width - $lineWidth) / 2));
+        imagestring($canvas, 5, $lineX, $lineY, $line, $ink);
+        $lineY += 24;
     }
-
-    $brandWidth = imagefontwidth(4) * strlen('AlaalaMo');
-    imagestring($canvas, 4, (int) (($width - $brandWidth) / 2), 544, 'AlaalaMo', $white);
 
     header('Content-Type: image/png');
     header('Content-Disposition: attachment; filename="' . preg_replace('/[^a-zA-Z0-9_-]+/', '-', $filename) . '.png"');
@@ -1876,7 +1871,7 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
           <div class="qr-panel-actions">
             <a class="button-primary" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Live Memorial</a>
             <a class="button-info" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
-            <a class="button-secondary" href="<?= htmlspecialchars($qrDownloadUrl, ENT_QUOTES, 'UTF-8') ?>">Download QR Card</a>
+            <a class="button-secondary qr-download-button" href="<?= htmlspecialchars($qrDownloadUrl, ENT_QUOTES, 'UTF-8') ?>">Download QR Card</a>
           </div>
           <p><?= count($paidMemorials) ?> paid of <?= count($memorials) ?> prepared memorials in this QR. Additional memorials are PHP <?= number_format($regularAdditionalPrice) ?> for Standard or PHP <?= number_format($premiumAdditionalPrice) ?> for Premium.</p>
           <?php if ($additionalCost > 0): ?>
