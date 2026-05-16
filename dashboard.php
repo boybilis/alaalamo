@@ -700,6 +700,16 @@ function remote_binary_fetch(string $url): string
     return (string) $response;
 }
 
+function imagefilledroundedrectangle($image, int $x1, int $y1, int $x2, int $y2, int $radius, int $color): void
+{
+    imagefilledrectangle($image, $x1 + $radius, $y1, $x2 - $radius, $y2, $color);
+    imagefilledrectangle($image, $x1, $y1 + $radius, $x2, $y2 - $radius, $color);
+    imagefilledellipse($image, $x1 + $radius, $y1 + $radius, $radius * 2, $radius * 2, $color);
+    imagefilledellipse($image, $x2 - $radius, $y1 + $radius, $radius * 2, $radius * 2, $color);
+    imagefilledellipse($image, $x1 + $radius, $y2 - $radius, $radius * 2, $radius * 2, $color);
+    imagefilledellipse($image, $x2 - $radius, $y2 - $radius, $radius * 2, $radius * 2, $color);
+}
+
 function output_branded_qr_download(string $qrDataUrl, string $title, string $filename): never
 {
     if (!function_exists('imagecreatetruecolor')) {
@@ -713,54 +723,48 @@ function output_branded_qr_download(string $qrDataUrl, string $title, string $fi
         redirect_to($qrDataUrl);
     }
 
-    $width = 1200;
-    $height = 1600;
+    $width = 600;
+    $height = 600;
     $canvas = imagecreatetruecolor($width, $height);
 
-    $paper = imagecolorallocate($canvas, 250, 247, 242);
-    $navy = imagecolorallocate($canvas, 33, 76, 99);
-    $muted = imagecolorallocate($canvas, 97, 107, 117);
-    $beige = imagecolorallocate($canvas, 234, 220, 200);
-    $shadow = imagecolorallocatealpha($canvas, 24, 41, 54, 110);
+    $paper = imagecolorallocate($canvas, 245, 243, 239);
+    $ink = imagecolorallocate($canvas, 20, 24, 28);
     $white = imagecolorallocate($canvas, 255, 255, 255);
+    $shadow = imagecolorallocatealpha($canvas, 0, 0, 0, 108);
 
     imagefill($canvas, 0, 0, $paper);
 
-    imagefilledellipse($canvas, 240, 220, 380, 380, $beige);
-    imagefilledellipse($canvas, 1010, 320, 260, 260, $beige);
-    imagefilledellipse($canvas, 980, 1330, 320, 320, $beige);
+    imagefilledroundedrectangle($canvas, 44, 20, 556, 432, 20, $shadow);
+    imagefilledroundedrectangle($canvas, 36, 12, 548, 424, 20, $white);
+    imagefilledroundedrectangle($canvas, 44, 454, 556, 578, 18, $shadow);
+    imagefilledroundedrectangle($canvas, 36, 446, 548, 570, 18, $ink);
 
-    imagefilledrectangle($canvas, 140, 170, 1060, 210, $navy);
+    $qrSize = 404;
+    imagecopyresampled($canvas, $qrImage, 90, 22, 0, 0, $qrSize, $qrSize, imagesx($qrImage), imagesy($qrImage));
+    imagedestroy($qrImage);
 
     $logoPath = __DIR__ . '/assets/alaalamo-logo-mark.png';
     if (is_file($logoPath)) {
         $logoBinary = (string) @file_get_contents($logoPath);
         $logoImage = $logoBinary !== '' ? @imagecreatefromstring($logoBinary) : false;
         if ($logoImage) {
-            imagecopyresampled($canvas, $logoImage, 500, 62, 0, 0, 200, 200, imagesx($logoImage), imagesy($logoImage));
+            imagecopyresampled($canvas, $logoImage, 258, 190, 0, 0, 84, 84, imagesx($logoImage), imagesy($logoImage));
             imagedestroy($logoImage);
         }
     }
 
-    imagestring($canvas, 5, 500, 276, 'AlaalaMo', $navy);
-    imagestring($canvas, 3, 392, 318, 'Scan to open the digital memorial', $muted);
-
-    imagefilledrectangle($canvas, 286, 434, 914, 1062, $shadow);
-    imagefilledrectangle($canvas, 260, 408, 940, 1088, $white);
-    imagecopyresampled($canvas, $qrImage, 310, 458, 0, 0, 580, 580, imagesx($qrImage), imagesy($qrImage));
-    imagedestroy($qrImage);
-
-    $titleLines = wordwrap($title, 24, "\n", true);
-    $lineY = 1118;
-    foreach (explode("\n", $titleLines) as $line) {
+    $title = trim($title) !== '' ? trim($title) : 'AlaalaMo Memorial';
+    $titleLines = explode("\n", wordwrap($title, 20, "\n", true));
+    $lineY = 476;
+    foreach ($titleLines as $line) {
         $lineWidth = imagefontwidth(5) * strlen($line);
-        $lineX = max(80, (int) (($width - $lineWidth) / 2));
-        imagestring($canvas, 5, $lineX, $lineY, $line, $navy);
-        $lineY += 28;
+        $lineX = max(52, (int) (($width - $lineWidth) / 2));
+        imagestring($canvas, 5, $lineX, $lineY, $line, $white);
+        $lineY += 22;
     }
 
-    imagestring($canvas, 3, 404, 1298, 'Point your camera at the QR code', $muted);
-    imagestring($canvas, 3, 340, 1334, 'to view the memorial on any mobile device.', $muted);
+    $brandWidth = imagefontwidth(4) * strlen('AlaalaMo');
+    imagestring($canvas, 4, (int) (($width - $brandWidth) / 2), 544, 'AlaalaMo', $white);
 
     header('Content-Type: image/png');
     header('Content-Disposition: attachment; filename="' . preg_replace('/[^a-zA-Z0-9_-]+/', '-', $filename) . '.png"');
