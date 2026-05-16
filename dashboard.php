@@ -2051,8 +2051,11 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
       <aside class="qr-panel">
         <h2>Family QR preview</h2>
         <?php if ($hasLiveMemorials && $qrUrl): ?>
+          <p class="qr-preview-kicker">SCAN WITH YOUR PHONE</p>
           <a class="qr-preview-link" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">
-            <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
+            <span class="qr-preview-shell">
+              <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
+            </span>
           </a>
           <div class="qr-panel-actions">
             <a class="button-primary" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Live Memorial</a>

@@ -1440,6 +1440,29 @@ h2 {
   text-align: center;
 }
 
+.qr-preview-kicker {
+  margin: 10px 0 0;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.qr-preview-link {
+  display: block;
+  margin-top: 14px;
+}
+
+.qr-preview-shell {
+  display: inline-block;
+  padding: 18px;
+  border: 1px solid rgba(33, 76, 99, 0.1);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(24, 41, 54, 0.08);
+}
+
 .qr-panel-actions {
   display: grid;
   gap: 12px;
@@ -1517,10 +1540,9 @@ h2 {
   width: 220px;
   max-width: 100%;
   height: auto;
-  margin: 18px auto;
-  border: 10px solid var(--white);
-  border-radius: 8px;
-  box-shadow: 0 14px 32px rgba(24, 41, 54, 0.12);
+  margin: 0 auto;
+  border-radius: 16px;
+  display: block;
 }
 
 .memorial-form {
