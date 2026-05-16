@@ -1435,13 +1435,34 @@ h2 {
 }
 
 .qr-panel {
+  display: grid;
+  gap: 18px;
   padding: 24px;
   align-self: start;
   text-align: center;
 }
 
+.qr-preview-card,
+.qr-actions-card {
+  border: 1px solid rgba(33, 76, 99, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 34px rgba(24, 41, 54, 0.06);
+}
+
+.qr-preview-card {
+  padding: 18px 18px 20px;
+}
+
+.qr-actions-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  text-align: left;
+}
+
 .qr-preview-kicker {
-  margin: 10px 0 0;
+  margin: 0;
   color: var(--accent-dark);
   font-size: 12px;
   font-weight: 800;
@@ -1466,11 +1487,11 @@ h2 {
 .qr-panel-actions {
   display: grid;
   gap: 12px;
-  margin: 14px 0 10px;
+  margin: 0;
 }
 
 .subscription-expiry {
-  margin-top: 14px;
+  margin-top: 2px;
   padding: 14px 16px;
   border: 1px solid rgba(194, 135, 47, 0.28);
   border-radius: 10px;
@@ -1513,13 +1534,6 @@ h2 {
 .qr-panel .button-success,
 .qr-panel .button-info {
   width: 100%;
-}
-
-.qr-panel > .button-primary,
-.qr-panel > .button-secondary,
-.qr-panel > .button-success,
-.qr-panel > .button-info {
-  margin-top: 12px;
 }
 
 .qr-panel .qr-download-button {

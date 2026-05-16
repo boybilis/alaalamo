@@ -2051,29 +2051,32 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
       <aside class="qr-panel">
         <h2>Family QR preview</h2>
         <?php if ($hasLiveMemorials && $qrUrl): ?>
-          <p class="qr-preview-kicker">SCAN WITH YOUR PHONE</p>
-          <a class="qr-preview-link" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">
-            <span class="qr-preview-shell">
-              <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
-            </span>
-          </a>
-          <div class="qr-panel-actions">
-            <a class="button-primary" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Live Memorial</a>
-            <a class="button-info" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
-            <a class="button-secondary qr-download-button" href="<?= htmlspecialchars($qrDownloadUrl, ENT_QUOTES, 'UTF-8') ?>">Download QR Card</a>
+          <div class="qr-preview-card">
+            <p class="qr-preview-kicker">SCAN WITH YOUR PHONE</p>
+            <a class="qr-preview-link" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">
+              <span class="qr-preview-shell">
+                <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
+              </span>
+            </a>
           </div>
-          <p><?= count($paidMemorials) ?> paid of <?= count($memorials) ?> prepared memorials in this QR. Additional memorials are PHP <?= number_format($regularAdditionalPrice) ?> for Standard or PHP <?= number_format($premiumAdditionalPrice) ?> for Premium.</p>
-          <?php if ($additionalCost > 0): ?>
-            <p>Additional memorial total: PHP <?= number_format($additionalCost) ?> per year.</p>
-          <?php endif; ?>
-          <?php if ($memorial && $isCurrentMemorialPaid && $currentMemorialExpiry): ?>
-            <div class="subscription-expiry <?= $currentMemorialCountdown && str_starts_with($currentMemorialCountdown, 'Expired') ? 'is-expired' : '' ?>">
-              <strong>Subscription expires on <?= htmlspecialchars($currentMemorialExpiry, ENT_QUOTES, 'UTF-8') ?></strong>
-              <?php if ($currentMemorialCountdown): ?>
-                <span><?= htmlspecialchars($currentMemorialCountdown, ENT_QUOTES, 'UTF-8') ?></span>
-              <?php endif; ?>
+          <div class="qr-actions-card">
+            <div class="qr-panel-actions">
+              <a class="button-primary" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Live Memorial</a>
+              <a class="button-info" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
+              <a class="button-secondary qr-download-button" href="<?= htmlspecialchars($qrDownloadUrl, ENT_QUOTES, 'UTF-8') ?>">Download QR Card</a>
             </div>
-          <?php endif; ?>
+            <p><?= count($paidMemorials) ?> paid of <?= count($memorials) ?> prepared memorials in this QR. Additional memorials are PHP <?= number_format($regularAdditionalPrice) ?> for Standard or PHP <?= number_format($premiumAdditionalPrice) ?> for Premium.</p>
+            <?php if ($additionalCost > 0): ?>
+              <p>Additional memorial total: PHP <?= number_format($additionalCost) ?> per year.</p>
+            <?php endif; ?>
+            <?php if ($memorial && $isCurrentMemorialPaid && $currentMemorialExpiry): ?>
+              <div class="subscription-expiry <?= $currentMemorialCountdown && str_starts_with($currentMemorialCountdown, 'Expired') ? 'is-expired' : '' ?>">
+                <strong>Subscription expires on <?= htmlspecialchars($currentMemorialExpiry, ENT_QUOTES, 'UTF-8') ?></strong>
+                <?php if ($currentMemorialCountdown): ?>
+                  <span><?= htmlspecialchars($currentMemorialCountdown, ENT_QUOTES, 'UTF-8') ?></span>
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
             <?php if ($memorial && !$isCurrentMemorialPaid): ?>
               <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link>Activate this memorial</a>
               <form class="voucher-activation-form" method="post" action="/dashboard.php?memorial_id=<?= (int) $memorial['id'] ?>">
@@ -2087,19 +2090,21 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
                 <span class="field-note"><?= $availableVoucherCount > 0 ? $availableVoucherCount . ' unused Premium voucher' . ($availableVoucherCount === 1 ? '' : 's') . ' available on this account.' : 'Voucher codes are emailed after every 5 qualified paid referrals.' ?></span>
               </form>
             <?php endif; ?>
-        <?php else: ?>
-          <p>Your private preview is ready while payment is pending. The public QR code will be generated after activation.</p>
-          <div class="qr-panel-actions">
-            <a class="button-info" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
           </div>
-          <?php if ($memorial && $isCurrentMemorialPaid && $currentMemorialExpiry): ?>
-            <div class="subscription-expiry <?= $currentMemorialCountdown && str_starts_with($currentMemorialCountdown, 'Expired') ? 'is-expired' : '' ?>">
-              <strong>Subscription expires on <?= htmlspecialchars($currentMemorialExpiry, ENT_QUOTES, 'UTF-8') ?></strong>
-              <?php if ($currentMemorialCountdown): ?>
-                <span><?= htmlspecialchars($currentMemorialCountdown, ENT_QUOTES, 'UTF-8') ?></span>
-              <?php endif; ?>
+        <?php else: ?>
+          <div class="qr-actions-card">
+            <p>Your private preview is ready while payment is pending. The public QR code will be generated after activation.</p>
+            <div class="qr-panel-actions">
+              <a class="button-info" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
             </div>
-          <?php endif; ?>
+            <?php if ($memorial && $isCurrentMemorialPaid && $currentMemorialExpiry): ?>
+              <div class="subscription-expiry <?= $currentMemorialCountdown && str_starts_with($currentMemorialCountdown, 'Expired') ? 'is-expired' : '' ?>">
+                <strong>Subscription expires on <?= htmlspecialchars($currentMemorialExpiry, ENT_QUOTES, 'UTF-8') ?></strong>
+                <?php if ($currentMemorialCountdown): ?>
+                  <span><?= htmlspecialchars($currentMemorialCountdown, ENT_QUOTES, 'UTF-8') ?></span>
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
             <?php if ($memorial): ?>
               <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link>Complete payment</a>
               <form class="voucher-activation-form" method="post" action="/dashboard.php?memorial_id=<?= (int) $memorial['id'] ?>">
@@ -2113,7 +2118,8 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
                 <span class="field-note"><?= $availableVoucherCount > 0 ? $availableVoucherCount . ' unused Premium voucher' . ($availableVoucherCount === 1 ? '' : 's') . ' available on this account.' : 'Voucher codes are emailed after every 5 qualified paid referrals.' ?></span>
               </form>
             <?php endif; ?>
-          <p><?= count($memorials) ?> of <?= MAX_MEMORIALS_PER_QR ?> memorials prepared for this QR.</p>
+            <p><?= count($memorials) ?> of <?= MAX_MEMORIALS_PER_QR ?> memorials prepared for this QR.</p>
+          </div>
         <?php endif; ?>
       </aside>
 
