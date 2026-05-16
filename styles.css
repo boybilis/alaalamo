@@ -1599,6 +1599,9 @@ h2 {
   height: 900px;
   padding: 56px 42px 52px;
   background: #f5f3ef;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .qr-print-brand {
