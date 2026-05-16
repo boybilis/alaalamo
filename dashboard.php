@@ -1997,6 +1997,10 @@ $publicUrl = rtrim(app_base_url(), '/') . '/memorial.php?t=' . urlencode($qrGrou
 $previewUrl = $publicUrl . '&preview=1';
 $qrUrl = $hasLiveMemorials ? 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($publicUrl) : '';
 $qrDownloadUrl = $hasLiveMemorials ? '/dashboard.php?download_qr=1' . ($memorial ? '&memorial_id=' . (int) $memorial['id'] : '') : '';
+$downloadTitle = count($memorials) > 1
+    ? 'Family Remembrance'
+    : trim((string) (($memorial ?: ($paidMemorials[0] ?? null))['loved_one_name'] ?? 'Memorial QR'));
+$downloadFilename = $downloadTitle !== '' ? $downloadTitle : 'AlaalaMo-QR';
 $regularAdditionalPrice = additional_memorial_price_for_type('regular');
 $premiumAdditionalPrice = additional_memorial_price_for_type('premium');
 $additionalCost = 0;
@@ -2576,22 +2580,6 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
         </div>
       </div>
     </main>
-    <?php if ($hasLiveMemorials && $qrUrl): ?>
-      <div class="qr-print-card" data-qr-print-card aria-hidden="true">
-        <div class="qr-print-brand">
-          <span class="brand-mark" aria-hidden="true">
-            <img class="brand-mark-image" src="assets/alaalamo-logo-mark.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time())) ?>" alt="">
-          </span>
-          <span class="brand-highlight">AlaalaMo</span>
-        </div>
-        <div class="qr-print-shell">
-          <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
-        </div>
-        <p class="qr-print-title">
-          <?= htmlspecialchars(count($memorials) > 1 ? 'Family Remembrance' : (trim((string) ($memorial['loved_one_name'] ?? 'Memorial Profile')) !== '' ? (string) $memorial['loved_one_name'] : 'Memorial Profile'), ENT_QUOTES, 'UTF-8') ?>
-        </p>
-      </div>
-    <?php endif; ?>
     <?php if ($showEarlyBirdModal): ?>
       <div class="early-bird-modal is-open" data-early-bird-modal aria-hidden="false">
         <div class="early-bird-backdrop"></div>
@@ -3447,7 +3435,7 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
         });
 
         $('[data-download-qr]').on('click', async function (event) {
-          const printCard = document.querySelector('[data-qr-print-card]');
+          const printCard = document.querySelector('.qr-preview-card');
 
           if (!printCard || typeof window.html2canvas !== 'function') {
             return;
@@ -3468,12 +3456,10 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
 
           try {
             const canvas = await window.html2canvas(printCard, {
-              backgroundColor: '#f5f3ef',
+              backgroundColor: null,
               scale: 3,
               useCORS: true,
               logging: false,
-              width: 600,
-              height: 900,
             });
 
             const link = document.createElement('a');
