@@ -5,6 +5,7 @@ $pageTitle = 'AlaalaMo | Digital Memorial Space';
 $pageDescription = "A QR memorial to preserve the faces, stories, and memories that should not fade with time.";
 $navItems = [
     ['label' => 'What it does', 'href' => '#what-it-does'],
+    ['label' => 'Live demo', 'href' => '#live-demo'],
     ['label' => 'Features', 'href' => '#features'],
     ['label' => 'Pricing', 'href' => '#pricing'],
     ['label' => 'Register', 'href' => '#signup'],
@@ -95,113 +96,6 @@ $pricingPlans = [
         'featured' => true,
     ],
 ];
-
-function demo_svg_data_uri(string $variant): string
-{
-    $svg = '';
-
-    if ($variant === 'portrait') {
-        $svg = <<<'SVG'
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 900">
-  <defs>
-    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#f4ede2"/>
-      <stop offset="100%" stop-color="#d7e6f0"/>
-    </linearGradient>
-    <linearGradient id="shirt" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#355f8f"/>
-      <stop offset="100%" stop-color="#173f68"/>
-    </linearGradient>
-  </defs>
-  <rect width="720" height="900" fill="url(#bg)"/>
-  <circle cx="360" cy="260" r="110" fill="#3b322f"/>
-  <circle cx="360" cy="300" r="118" fill="#d7b49d"/>
-  <rect x="232" y="428" width="256" height="330" rx="124" fill="url(#shirt)"/>
-  <rect x="170" y="500" width="380" height="250" rx="54" fill="url(#shirt)"/>
-  <rect x="298" y="392" width="124" height="88" rx="42" fill="#cfab92"/>
-  <circle cx="318" cy="290" r="14" fill="#2b2523"/>
-  <circle cx="404" cy="290" r="14" fill="#2b2523"/>
-  <path d="M309 350c28 18 75 18 103 0" stroke="#6f4338" stroke-width="12" fill="none" stroke-linecap="round"/>
-  <path d="M236 220c28-92 207-93 245 0-8-83-74-150-122-150-49 0-116 69-123 150Z" fill="#2f2b2a"/>
-</svg>
-SVG;
-    } elseif ($variant === 'teacher') {
-        $svg = <<<'SVG'
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 460">
-  <defs>
-    <linearGradient id="wall" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#f5efe4"/>
-      <stop offset="100%" stop-color="#ddebf4"/>
-    </linearGradient>
-  </defs>
-  <rect width="720" height="460" fill="url(#wall)"/>
-  <rect x="60" y="70" width="600" height="220" rx="18" fill="#1f4a68"/>
-  <rect x="84" y="94" width="552" height="172" rx="12" fill="#f7fafc"/>
-  <rect x="110" y="118" width="210" height="18" rx="9" fill="#d8e3ee"/>
-  <rect x="110" y="150" width="280" height="14" rx="7" fill="#e4ecf3"/>
-  <rect x="110" y="178" width="240" height="14" rx="7" fill="#e4ecf3"/>
-  <rect x="110" y="206" width="198" height="14" rx="7" fill="#e4ecf3"/>
-  <circle cx="510" cy="224" r="70" fill="#355f8f"/>
-  <circle cx="510" cy="204" r="46" fill="#d8b198"/>
-  <rect x="464" y="252" width="92" height="110" rx="42" fill="#24486d"/>
-  <rect x="40" y="330" width="640" height="76" rx="22" fill="#c59f65"/>
-  <rect x="122" y="347" width="88" height="44" rx="12" fill="#f9f4ed"/>
-  <rect x="244" y="347" width="88" height="44" rx="12" fill="#f9f4ed"/>
-  <rect x="366" y="347" width="88" height="44" rx="12" fill="#f9f4ed"/>
-</svg>
-SVG;
-    } else {
-        $svg = <<<'SVG'
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 460">
-  <defs>
-    <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#f3ebdf"/>
-      <stop offset="100%" stop-color="#d8e8f0"/>
-    </linearGradient>
-    <linearGradient id="grass" x1="0" x2="1" y1="0" y2="0">
-      <stop offset="0%" stop-color="#6c8f62"/>
-      <stop offset="100%" stop-color="#8fb07b"/>
-    </linearGradient>
-  </defs>
-  <rect width="720" height="460" fill="url(#sky)"/>
-  <rect y="318" width="720" height="142" fill="url(#grass)"/>
-  <circle cx="220" cy="165" r="64" fill="#d9b49b"/>
-  <rect x="170" y="228" width="104" height="116" rx="46" fill="#355f8f"/>
-  <circle cx="356" cy="176" r="56" fill="#d7af95"/>
-  <rect x="312" y="230" width="92" height="108" rx="42" fill="#274b6f"/>
-  <circle cx="498" cy="168" r="58" fill="#d8b59d"/>
-  <rect x="452" y="228" width="98" height="116" rx="44" fill="#8f613f"/>
-  <path d="M184 156c10-52 69-78 106-32-13-68-92-89-119-27 1 17 6 34 13 59Z" fill="#2e2c2c"/>
-  <path d="M322 170c12-49 62-72 92-27-7-60-69-81-100-29 0 15 3 31 8 56Z" fill="#2e2c2c"/>
-  <path d="M465 163c12-48 61-70 91-25-6-57-66-77-97-28 0 15 2 30 6 53Z" fill="#2e2c2c"/>
-</svg>
-SVG;
-    }
-
-    return 'data:image/svg+xml;charset=UTF-8,' . rawurlencode($svg);
-}
-
-$demoMemorial = [
-    'name' => 'John Doe',
-    'dates' => 'March 14, 1954 - September 22, 2023',
-    'quote' => 'A beloved father, teacher, and storyteller whose quiet kindness shaped generations.',
-    'resting_place' => 'San Miguel Memorial Park, Sample City',
-    'profile_image' => demo_svg_data_uri('portrait'),
-    'milestones' => [
-        [
-            'title' => 'A Life of Teaching',
-            'date' => '1978 - 2008',
-            'body' => 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent vitae nisl at erat varius volutpat. Donec id sem eu ligula feugiat posuere.',
-            'image' => demo_svg_data_uri('teacher'),
-        ],
-        [
-            'title' => 'Family Gatherings and Sundays',
-            'date' => '1985 - 2019',
-            'body' => 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus vel enim non ligula posuere finibus. Integer luctus erat in erat viverra, eu feugiat risus vulputate.',
-            'image' => demo_svg_data_uri('family'),
-        ],
-    ],
-];
 $registrationFlash = get_flash();
 ?>
 <!doctype html>
@@ -280,6 +174,69 @@ $registrationFlash = get_flash();
                 <p><?= htmlspecialchars($item['body'], ENT_QUOTES, 'UTF-8') ?></p>
               </div>
             <?php endforeach; ?>
+          </div>
+        </div>
+      </section>
+
+      <section class="demo-section" id="live-demo" aria-labelledby="live-demo-title">
+        <div class="demo-content">
+          <div class="section-heading">
+            <p class="section-eyebrow">LIVE PREMIUM DEMO</p>
+            <h2 id="live-demo-title">Scan a real AlaalaMo memorial and see the digital memorial space your family can receive.</h2>
+            <p class="section-quote">
+              This live sample opens an actual premium memorial page with AI-guided written content, curated images,
+              milestones, gallery, and the features available in the full experience.
+            </p>
+          </div>
+
+          <div class="live-demo-layout">
+            <article class="live-demo-qr-card">
+              <p class="live-demo-kicker">SCAN WITH YOUR PHONE</p>
+              <div class="live-demo-qr-shell">
+                <img
+                  src="assets/juanita-carpio-dela-cruz-demo.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/juanita-carpio-dela-cruz-demo.png') ? filemtime(__DIR__ . '/assets/juanita-carpio-dela-cruz-demo.png') : time())) ?>"
+                  alt="Live premium memorial QR demo"
+                >
+              </div>
+              <p class="live-demo-instruction">
+                Point your camera at the QR code to open the live memorial demo directly on a mobile phone.
+              </p>
+            </article>
+
+            <div class="live-demo-copy">
+              <div class="live-demo-panel">
+                <span>WHAT YOU WILL SEE</span>
+                <ul class="live-demo-list">
+                  <li><i class="fa-solid fa-check" aria-hidden="true"></i> Memorial profile presented through QR-based access</li>
+                  <li><i class="fa-solid fa-check" aria-hidden="true"></i> Custom life story presentation with narration</li>
+                  <li><i class="fa-solid fa-check" aria-hidden="true"></i> Accurate headstone pinning with map guidance and location support</li>
+                  <li><i class="fa-solid fa-check" aria-hidden="true"></i> Image gallery, shared photos, and messages that can be reviewed by the family</li>
+                  <li><i class="fa-solid fa-check" aria-hidden="true"></i> Favorite song playback, visitor guestbook, and anniversary reminder-ready memorial flow</li>
+                </ul>
+              </div>
+
+              <div class="live-demo-panel">
+                <span>ACCESS AND SECURITY</span>
+                <p class="live-demo-paragraph">
+                  Each digital memorial profile is protected through secure tokenized access, email verification,
+                  and OTP authentication to help preserve privacy, respect, and family exclusivity.
+                </p>
+              </div>
+
+              <div class="live-demo-panel">
+                <span>SPECIAL FEATURES</span>
+                <ul class="live-demo-list">
+                  <li><i class="fa-solid fa-star" aria-hidden="true"></i> AI-enhanced biography generator for milestone content on Premium accounts</li>
+                  <li><i class="fa-solid fa-star" aria-hidden="true"></i> Changeable memorial theme colors through custom selection</li>
+                </ul>
+              </div>
+
+              <div class="live-demo-note">
+                <strong>Why this matters:</strong>
+                Instead of imagining the experience from screenshots alone, families can scan and immediately preview
+                how a completed AlaalaMo memorial lives on a real phone screen.
+              </div>
+            </div>
           </div>
         </div>
       </section>
