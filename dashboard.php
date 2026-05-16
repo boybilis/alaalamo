@@ -172,6 +172,13 @@ if (isset($_GET['psgc_lookup'])) {
                 json_response(['ok' => true, 'items' => []]);
             }
             $items = psgc_cloud_fetch('https://psgc.cloud/api/v1/provinces?region_code=' . urlencode($regionCode) . '&per_page=200');
+            if (!$items) {
+                $allProvinces = psgc_cloud_fetch('https://psgc.cloud/api/provinces');
+                $items = array_values(array_filter($allProvinces, static function (array $item) use ($regionCode): bool {
+                    $itemRegionCode = (string) ($item['region_code'] ?? $item['regionCode'] ?? '');
+                    return $itemRegionCode === $regionCode;
+                }));
+            }
         } elseif ($lookup === 'cities') {
             $regionCode = clean_input((string) ($_GET['region_code'] ?? ''));
             $provinceCode = clean_input((string) ($_GET['province_code'] ?? ''));
@@ -613,6 +620,21 @@ function build_delivery_address(
 
 function psgc_cloud_fetch(string $url): array
 {
+    $cacheDirectory = __DIR__ . '/assets/psgc-cache';
+    if (!is_dir($cacheDirectory)) {
+        @mkdir($cacheDirectory, 0755, true);
+    }
+
+    $cacheFile = $cacheDirectory . '/' . md5($url) . '.json';
+    $cacheTtl = 60 * 60 * 24 * 30;
+
+    if (is_file($cacheFile) && (time() - (int) filemtime($cacheFile)) < $cacheTtl) {
+        $cached = json_decode((string) file_get_contents($cacheFile), true);
+        if (array_is_list($cached) && count($cached) > 0) {
+            return $cached;
+        }
+    }
+
     if (!function_exists('curl_init')) {
         throw new RuntimeException('cURL is required for PSGC lookup.');
     }
@@ -637,10 +659,20 @@ function psgc_cloud_fetch(string $url): array
     $data = json_decode($response, true);
 
     if (is_array($data) && isset($data['data']) && is_array($data['data'])) {
-        return $data['data'];
+        $data = $data['data'];
+    } elseif (is_array($data) && isset($data['items']) && is_array($data['items'])) {
+        $data = $data['items'];
+    } elseif (is_array($data) && isset($data['results']) && is_array($data['results'])) {
+        $data = $data['results'];
     }
 
-    return is_array($data) ? $data : [];
+    $items = array_is_list($data) ? $data : [];
+
+    if (is_dir($cacheDirectory) && count($items) > 0) {
+        @file_put_contents($cacheFile, json_encode($items, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    return $items;
 }
 
 function memorial_expiration_at(?array $memorial): ?DateTimeImmutable
