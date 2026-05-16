@@ -1573,6 +1573,19 @@ h2 {
   display: block;
 }
 
+.qr-preview-title {
+  width: min(220px, 100%);
+  margin: 16px auto 0;
+  color: var(--accent-dark);
+  font-family: "Lora", Georgia, serif;
+  font-size: clamp(18px, 2.1vw, 24px);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-wrap: balance;
+  word-break: break-word;
+}
+
 .memorial-form {
   grid-column: 1 / -1;
   display: grid;

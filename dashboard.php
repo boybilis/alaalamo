@@ -2063,6 +2063,9 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
                 <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
               </span>
             </a>
+            <p class="qr-preview-title">
+              <?= htmlspecialchars(count($memorials) > 1 ? 'Family Remembrance' : (trim((string) ($memorial['loved_one_name'] ?? 'Memorial Profile')) !== '' ? (string) $memorial['loved_one_name'] : 'Memorial Profile'), ENT_QUOTES, 'UTF-8') ?>
+            </p>
           </div>
           <div class="qr-actions-card">
             <div class="qr-panel-actions">
