@@ -1547,6 +1547,20 @@ h2 {
   justify-content: flex-start;
 }
 
+.milestone-reveal-actions .button-secondary {
+  border-color: rgba(33, 76, 99, 0.18);
+  background: var(--beige);
+  color: var(--accent-dark);
+  box-shadow: 0 14px 30px rgba(33, 76, 99, 0.12);
+}
+
+.milestone-reveal-actions .button-secondary:hover,
+.milestone-reveal-actions .button-secondary:focus {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  color: var(--white);
+}
+
 .milestone-ai-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
