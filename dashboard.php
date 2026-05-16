@@ -728,38 +728,23 @@ function output_branded_qr_download(string $qrDataUrl, string $title, string $fi
     $canvas = imagecreatetruecolor($width, $height);
 
     $paper = imagecolorallocate($canvas, 245, 243, 239);
-    $ink = imagecolorallocate($canvas, 28, 32, 36);
     $white = imagecolorallocate($canvas, 255, 255, 255);
-    $grayBorder = imagecolorallocate($canvas, 128, 133, 138);
+    $grayBorder = imagecolorallocate($canvas, 126, 126, 126);
 
     imagefill($canvas, 0, 0, $paper);
 
-    $logoPath = __DIR__ . '/assets/alaalamo-logo-mark.png';
-    if (is_file($logoPath)) {
-        $logoBinary = (string) @file_get_contents($logoPath);
-        $logoImage = $logoBinary !== '' ? @imagecreatefromstring($logoBinary) : false;
-        if ($logoImage) {
-            imagecopyresampled($canvas, $logoImage, 210, 18, 0, 0, 180, 180, imagesx($logoImage), imagesy($logoImage));
-            imagedestroy($logoImage);
-        }
-    }
+    $frameOuter = 510;
+    $frameInner = 486;
+    $frameX = (int) (($width - $frameOuter) / 2);
+    $frameY = (int) (($height - $frameOuter) / 2);
+    imagefilledroundedrectangle($canvas, $frameX, $frameY, $frameX + $frameOuter, $frameY + $frameOuter, 18, $grayBorder);
+    imagefilledroundedrectangle($canvas, $frameX + 12, $frameY + 12, $frameX + 12 + $frameInner, $frameY + 12 + $frameInner, 14, $white);
 
-    imagefilledroundedrectangle($canvas, 55, 186, 545, 474, 18, $grayBorder);
-    imagefilledroundedrectangle($canvas, 63, 194, 537, 466, 14, $white);
-
-    $qrSize = 438;
-    imagecopyresampled($canvas, $qrImage, 81, 211, 0, 0, $qrSize, $qrSize, imagesx($qrImage), imagesy($qrImage));
+    $qrSize = 450;
+    $qrX = (int) (($width - $qrSize) / 2);
+    $qrY = (int) (($height - $qrSize) / 2);
+    imagecopyresampled($canvas, $qrImage, $qrX, $qrY, 0, 0, $qrSize, $qrSize, imagesx($qrImage), imagesy($qrImage));
     imagedestroy($qrImage);
-
-    $title = strtoupper(trim($title) !== '' ? trim($title) : 'AlaalaMo Memorial');
-    $titleLines = explode("\n", wordwrap($title, 22, "\n", true));
-    $lineY = 504;
-    foreach ($titleLines as $line) {
-        $lineWidth = imagefontwidth(5) * strlen($line);
-        $lineX = max(20, (int) (($width - $lineWidth) / 2));
-        imagestring($canvas, 5, $lineX, $lineY, $line, $ink);
-        $lineY += 24;
-    }
 
     header('Content-Type: image/png');
     header('Content-Disposition: attachment; filename="' . preg_replace('/[^a-zA-Z0-9_-]+/', '-', $filename) . '.png"');
