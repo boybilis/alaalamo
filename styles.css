@@ -1578,7 +1578,7 @@ h2 {
   margin: 16px auto 0;
   color: var(--accent-dark);
   font-family: "Lora", Georgia, serif;
-  font-size: clamp(17px, 1.9vw, 21px);
+  font-size: clamp(15px, 1.6vw, 18px);
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: 0.04em;
