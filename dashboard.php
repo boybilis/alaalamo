@@ -158,6 +158,50 @@ if (!$user) {
 
 $accessQrGroup = ensure_qr_group((int) $user['id']);
 
+if (isset($_GET['psgc_lookup'])) {
+    $lookup = clean_input((string) ($_GET['psgc_lookup'] ?? ''));
+
+    try {
+        $items = [];
+
+        if ($lookup === 'regions') {
+            $items = psgc_cloud_fetch('https://psgc.cloud/api/regions');
+        } elseif ($lookup === 'provinces') {
+            $regionCode = clean_input((string) ($_GET['region_code'] ?? ''));
+            if ($regionCode === '') {
+                json_response(['ok' => true, 'items' => []]);
+            }
+            $items = psgc_cloud_fetch('https://psgc.cloud/api/v1/provinces?region_code=' . urlencode($regionCode) . '&per_page=200');
+        } elseif ($lookup === 'cities') {
+            $regionCode = clean_input((string) ($_GET['region_code'] ?? ''));
+            $provinceCode = clean_input((string) ($_GET['province_code'] ?? ''));
+
+            if ($regionCode === '') {
+                json_response(['ok' => true, 'items' => []]);
+            }
+
+            if ($provinceCode !== '') {
+                $items = psgc_cloud_fetch('https://psgc.cloud/api/v1/provinces/' . rawurlencode($provinceCode) . '/cities-municipalities?per_page=500');
+            } else {
+                $items = psgc_cloud_fetch('https://psgc.cloud/api/v1/cities-municipalities?region_code=' . urlencode($regionCode) . '&per_page=500');
+            }
+        } elseif ($lookup === 'barangays') {
+            $cityCode = clean_input((string) ($_GET['city_code'] ?? ''));
+            if ($cityCode === '') {
+                json_response(['ok' => true, 'items' => []]);
+            }
+            $items = psgc_cloud_fetch('https://psgc.cloud/api/v1/cities-municipalities/' . rawurlencode($cityCode) . '/barangays?per_page=5000');
+        } else {
+            json_response(['ok' => false, 'message' => 'Invalid PSGC lookup request.'], 422);
+        }
+
+        json_response(['ok' => true, 'items' => $items]);
+    } catch (Throwable $exception) {
+        error_log('PSGC lookup failed: ' . $exception->getMessage());
+        json_response(['ok' => false, 'message' => 'PSGC address lookup is temporarily unavailable.'], 500);
+    }
+}
+
 function uploaded_file_at(array $files, int $index): array
 {
     return [
@@ -565,6 +609,38 @@ function build_delivery_address(
     }
 
     return implode(', ', $parts);
+}
+
+function psgc_cloud_fetch(string $url): array
+{
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('cURL is required for PSGC lookup.');
+    }
+
+    $curl = curl_init($url);
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_HTTPHEADER => ['Accept: application/json'],
+    ]);
+
+    $response = curl_exec($curl);
+    $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    $error = curl_error($curl);
+    curl_close($curl);
+
+    if ($response === false || $status < 200 || $status >= 300) {
+        throw new RuntimeException('PSGC request failed: HTTP ' . $status . ' ' . $error);
+    }
+
+    $data = json_decode($response, true);
+
+    if (is_array($data) && isset($data['data']) && is_array($data['data'])) {
+        return $data['data'];
+    }
+
+    return is_array($data) ? $data : [];
 }
 
 function memorial_expiration_at(?array $memorial): ?DateTimeImmutable
@@ -2289,6 +2365,10 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           }
 
           const payload = await response.json();
+          if (payload && Array.isArray(payload.items)) {
+            return payload.items;
+          }
+
           return normalizeApiItems(payload);
         }
 
@@ -2326,7 +2406,7 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
         }
 
         async function loadRegions(selectedCode) {
-          regionCache = await fetchPsgcCollection('https://psgc.cloud/api/regions');
+          regionCache = await fetchPsgcCollection('dashboard.php?psgc_lookup=regions');
           fillSelect($deliveryRegion, regionCache, 'Select region', selectedCode || $deliveryRegionCode.val());
           syncDeliveryHiddenInputs();
         }
@@ -2341,7 +2421,7 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
             return;
           }
 
-          provinceCache = await fetchPsgcCollection('https://psgc.cloud/api/v1/provinces?region_code=' + encodeURIComponent(regionCode) + '&per_page=200');
+          provinceCache = await fetchPsgcCollection('dashboard.php?psgc_lookup=provinces&region_code=' + encodeURIComponent(regionCode));
           fillSelect($deliveryProvince, provinceCache, provinceCache.length ? 'Select province' : 'No province required', selectedCode || $deliveryProvinceCode.val());
 
           if (!provinceCache.length) {
@@ -2368,13 +2448,12 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
             return;
           }
 
-          const params = new URLSearchParams({ per_page: '500' });
-          params.set('region_code', regionCode);
+          const params = new URLSearchParams({ psgc_lookup: 'cities', region_code: regionCode });
           if (provinceCode) {
             params.set('province_code', provinceCode);
           }
 
-          cityCache = await fetchPsgcCollection('https://psgc.cloud/api/v1/cities-municipalities?' + params.toString());
+          cityCache = await fetchPsgcCollection('dashboard.php?' + params.toString());
           fillSelect($deliveryCity, cityCache, 'Select city or municipality', selectedCode || $deliveryCityCode.val());
           fillSelect($deliveryBarangay, [], 'Select barangay', '');
           syncDeliveryHiddenInputs();
@@ -2388,7 +2467,7 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
             return;
           }
 
-          barangayCache = await fetchPsgcCollection('https://psgc.cloud/api/v1/cities-municipalities/' + encodeURIComponent(cityCode) + '/barangays?per_page=5000');
+          barangayCache = await fetchPsgcCollection('dashboard.php?psgc_lookup=barangays&city_code=' + encodeURIComponent(cityCode));
           fillSelect($deliveryBarangay, barangayCache, 'Select barangay', selectedCode || $deliveryBarangayCode.val());
           syncDeliveryHiddenInputs();
         }
