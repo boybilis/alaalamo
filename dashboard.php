@@ -539,6 +539,34 @@ function additional_memorial_price_for_type(string $planType): int
     return $planType === 'premium' ? 700 : 399;
 }
 
+function build_delivery_address(
+    string $regionName,
+    string $provinceName,
+    string $cityName,
+    string $barangayName,
+    string $exactAddress
+): string {
+    $parts = [];
+
+    if ($exactAddress !== '') {
+        $parts[] = $exactAddress;
+    }
+    if ($barangayName !== '') {
+        $parts[] = $barangayName;
+    }
+    if ($cityName !== '') {
+        $parts[] = $cityName;
+    }
+    if ($provinceName !== '') {
+        $parts[] = $provinceName;
+    }
+    if ($regionName !== '') {
+        $parts[] = $regionName;
+    }
+
+    return implode(', ', $parts);
+}
+
 function memorial_expiration_at(?array $memorial): ?DateTimeImmutable
 {
     $paidAt = trim((string) ($memorial['paid_at'] ?? ''));
@@ -1192,10 +1220,102 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ], $uploaded > 0 ? 200 : 422);
     }
 
+    if ($formAction === 'upload_gallery_images') {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
+        $requestedPlanType = requested_plan_type((string) ($_POST['plan_type'] ?? 'regular'));
+
+        $stmt = $pdo->prepare(
+            'SELECT * FROM memorials WHERE id = ? AND user_id = ? AND qr_group_id = ? LIMIT 1'
+        );
+        $stmt->execute([$memorialIdInput, (int) $user['id'], (int) $qrGroup['id']]);
+        $targetMemorial = $stmt->fetch();
+
+        if (!$targetMemorial) {
+            json_response(['ok' => false, 'message' => 'Save the memorial details first before uploading gallery photos.'], 422);
+        }
+
+        $planLimits = plan_limits_for_type(effective_memorial_plan_type($targetMemorial, $qrGroup, $requestedPlanType));
+        $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM memorial_images WHERE memorial_id = ? AND image_type = "gallery"');
+        $existingCountStmt->execute([(int) $targetMemorial['id']]);
+        $existingCount = (int) $existingCountStmt->fetchColumn();
+        $remainingSlots = max(0, $planLimits['gallery_images'] - $existingCount);
+
+        if ($remainingSlots === 0) {
+            json_response(['ok' => false, 'message' => 'This memorial already has the maximum number of gallery photos.'], 422);
+        }
+
+        $uploaded = 0;
+        $uploadedHtml = [];
+        $uploadErrorMessage = 'No valid gallery photos were uploaded.';
+
+        if (!empty($_FILES['gallery_images']['name'])) {
+            $imageCount = min(count($_FILES['gallery_images']['name']), $remainingSlots);
+
+            for ($i = 0; $i < $imageCount; $i++) {
+                $uploadFile = uploaded_file_at($_FILES['gallery_images'], $i);
+
+                if (($uploadFile['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                    $uploadErrorMessage = upload_error_message((int) $uploadFile['error']);
+                    continue;
+                }
+
+                $path = store_mobile_optimized_image(
+                    $uploadFile,
+                    'users/' . (int) $user['id'] . '/memorials/' . (int) $targetMemorial['id'] . '/gallery'
+                );
+
+                if ($path) {
+                    $pdo->prepare('INSERT INTO memorial_images (memorial_id, image_type, image_path) VALUES (?, "gallery", ?)')
+                        ->execute([(int) $targetMemorial['id'], $path]);
+                    $uploadedHtml[] = image_preview_html([
+                        'id' => (int) $pdo->lastInsertId(),
+                        'image_path' => $path,
+                    ], 'gallery');
+                    $uploaded++;
+                } else {
+                    $uploadErrorMessage = 'The gallery photo could not be processed. Try a JPG photo under 3MB.';
+                }
+
+                unset($uploadFile, $path);
+
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            }
+        }
+
+        json_response([
+            'ok' => $uploaded > 0,
+            'message' => $uploaded > 0 ? 'Gallery photos uploaded.' : $uploadErrorMessage,
+            'html' => implode('', $uploadedHtml),
+            'count' => $existingCount + $uploaded,
+            'limit' => $planLimits['gallery_images'],
+        ], $uploaded > 0 ? 200 : 422);
+    }
+
     $lovedOneName = clean_input($_POST['loved_one_name'] ?? '');
     $birthDate = clean_input($_POST['birth_date'] ?? '');
     $deathDate = clean_input($_POST['death_date'] ?? '');
     $restingPlace = clean_input($_POST['resting_place'] ?? '');
+    $deliveryRegionCode = clean_input($_POST['delivery_region_code'] ?? '');
+    $deliveryRegionName = clean_input($_POST['delivery_region_name'] ?? '');
+    $deliveryProvinceCode = clean_input($_POST['delivery_province_code'] ?? '');
+    $deliveryProvinceName = clean_input($_POST['delivery_province_name'] ?? '');
+    $deliveryCityCode = clean_input($_POST['delivery_city_code'] ?? '');
+    $deliveryCityName = clean_input($_POST['delivery_city_name'] ?? '');
+    $deliveryBarangayCode = clean_input($_POST['delivery_barangay_code'] ?? '');
+    $deliveryBarangayName = clean_input($_POST['delivery_barangay_name'] ?? '');
+    $deliveryExactAddress = clean_input($_POST['delivery_exact_address'] ?? '');
+    $deliveryAddress = build_delivery_address(
+        $deliveryRegionName,
+        $deliveryProvinceName,
+        $deliveryCityName,
+        $deliveryBarangayName,
+        $deliveryExactAddress
+    );
     $restingLat = clean_coordinate((string) ($_POST['resting_lat'] ?? ''), -90, 90);
     $restingLng = clean_coordinate((string) ($_POST['resting_lng'] ?? ''), -180, 180);
     $memorialQuote = clean_input($_POST['memorial_quote'] ?? '');
@@ -1228,7 +1348,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $planLimits = plan_limits_for_type($effectivePlanType);
             $pdo->prepare(
                 'UPDATE memorials
-                 SET plan_type = ?, loved_one_name = ?, birth_date = ?, death_date = ?, resting_place = ?, resting_lat = ?, resting_lng = ?, memorial_quote = ?, favorite_song_url = ?, short_description = ?, theme_primary = ?, theme_secondary = ?, theme_tertiary = ?, status = "published"
+                 SET plan_type = ?, loved_one_name = ?, birth_date = ?, death_date = ?, resting_place = ?, delivery_address = ?, delivery_region_code = ?, delivery_region_name = ?, delivery_province_code = ?, delivery_province_name = ?, delivery_city_code = ?, delivery_city_name = ?, delivery_barangay_code = ?, delivery_barangay_name = ?, delivery_exact_address = ?, resting_lat = ?, resting_lng = ?, memorial_quote = ?, favorite_song_url = ?, short_description = ?, theme_primary = ?, theme_secondary = ?, theme_tertiary = ?, status = "published"
                  WHERE id = ?'
             )->execute([
                 $effectivePlanType,
@@ -1236,6 +1356,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $birthDate !== '' ? $birthDate : null,
                 $deathDate !== '' ? $deathDate : null,
                 $restingPlace !== '' ? $restingPlace : null,
+                $deliveryAddress !== '' ? $deliveryAddress : null,
+                $deliveryRegionCode !== '' ? $deliveryRegionCode : null,
+                $deliveryRegionName !== '' ? $deliveryRegionName : null,
+                $deliveryProvinceCode !== '' ? $deliveryProvinceCode : null,
+                $deliveryProvinceName !== '' ? $deliveryProvinceName : null,
+                $deliveryCityCode !== '' ? $deliveryCityCode : null,
+                $deliveryCityName !== '' ? $deliveryCityName : null,
+                $deliveryBarangayCode !== '' ? $deliveryBarangayCode : null,
+                $deliveryBarangayName !== '' ? $deliveryBarangayName : null,
+                $deliveryExactAddress !== '' ? $deliveryExactAddress : null,
                 $restingLat,
                 $restingLng,
                 $memorialQuote !== '' ? $memorialQuote : null,
@@ -1260,8 +1390,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $planLimits = plan_limits_for_type($effectivePlanType);
             $pdo->prepare(
                 'INSERT INTO memorials
-                 (user_id, qr_group_id, plan_type, public_token, loved_one_name, birth_date, death_date, resting_place, resting_lat, resting_lng, memorial_quote, favorite_song_url, short_description, theme_primary, theme_secondary, theme_tertiary, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "published")'
+                 (user_id, qr_group_id, plan_type, public_token, loved_one_name, birth_date, death_date, resting_place, delivery_address, delivery_region_code, delivery_region_name, delivery_province_code, delivery_province_name, delivery_city_code, delivery_city_name, delivery_barangay_code, delivery_barangay_name, delivery_exact_address, resting_lat, resting_lng, memorial_quote, favorite_song_url, short_description, theme_primary, theme_secondary, theme_tertiary, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "published")'
             )->execute([
                 (int) $user['id'],
                 (int) $qrGroup['id'],
@@ -1271,6 +1401,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $birthDate !== '' ? $birthDate : null,
                 $deathDate !== '' ? $deathDate : null,
                 $restingPlace !== '' ? $restingPlace : null,
+                $deliveryAddress !== '' ? $deliveryAddress : null,
+                $deliveryRegionCode !== '' ? $deliveryRegionCode : null,
+                $deliveryRegionName !== '' ? $deliveryRegionName : null,
+                $deliveryProvinceCode !== '' ? $deliveryProvinceCode : null,
+                $deliveryProvinceName !== '' ? $deliveryProvinceName : null,
+                $deliveryCityCode !== '' ? $deliveryCityCode : null,
+                $deliveryCityName !== '' ? $deliveryCityName : null,
+                $deliveryBarangayCode !== '' ? $deliveryBarangayCode : null,
+                $deliveryBarangayName !== '' ? $deliveryBarangayName : null,
+                $deliveryExactAddress !== '' ? $deliveryExactAddress : null,
                 $restingLat,
                 $restingLng,
                 $memorialQuote !== '' ? $memorialQuote : null,
@@ -1281,23 +1421,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $themeTertiary,
             ]);
             $memorialId = (int) $pdo->lastInsertId();
-        }
-
-        if (!empty($_FILES['gallery_images']['name'])) {
-            $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM memorial_images WHERE memorial_id = ? AND image_type = "gallery"');
-            $existingCountStmt->execute([$memorialId]);
-            $existingCount = (int) $existingCountStmt->fetchColumn();
-            $remainingSlots = max(0, $planLimits['gallery_images'] - $existingCount);
-            $galleryUploadCount = min(count($_FILES['gallery_images']['name']), $remainingSlots);
-
-            for ($i = 0; $i < $galleryUploadCount; $i++) {
-                $path = store_mobile_optimized_image(uploaded_file_at($_FILES['gallery_images'], $i), 'users/' . (int) $user['id'] . '/memorials/' . $memorialId . '/gallery');
-
-                if ($path) {
-                    $pdo->prepare('INSERT INTO memorial_images (memorial_id, image_type, image_path) VALUES (?, "gallery", ?)')
-                        ->execute([$memorialId, $path]);
-                }
-            }
         }
 
         $milestoneIds = $_POST['milestone_id'] ?? [];
@@ -1604,6 +1727,48 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
                 <span class="field-note">Choose the plan for this memorial before payment activation.</span>
               <?php endif; ?>
             </label>
+            <label class="form-full">
+              Delivery region
+              <select data-delivery-region>
+                <option value="">Select region</option>
+              </select>
+              <input type="hidden" name="delivery_region_code" data-delivery-region-code value="<?= htmlspecialchars($memorial['delivery_region_code'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+              <input type="hidden" name="delivery_region_name" data-delivery-region-name value="<?= htmlspecialchars($memorial['delivery_region_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+              <span class="field-note">For future QR marker delivery only. This stays private in the dashboard and will not appear on the public memorial page.</span>
+            </label>
+            <div class="form-full delivery-recipient-note">
+              <strong>Recipient:</strong>
+              <span><?= htmlspecialchars(trim(((string) ($user['given_name'] ?? '')) . ' ' . ((string) ($user['last_name'] ?? ''))), ENT_QUOTES, 'UTF-8') ?> (account owner)</span>
+            </div>
+            <label>
+              Province
+              <select data-delivery-province>
+                <option value="">Select province</option>
+              </select>
+              <input type="hidden" name="delivery_province_code" data-delivery-province-code value="<?= htmlspecialchars($memorial['delivery_province_code'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+              <input type="hidden" name="delivery_province_name" data-delivery-province-name value="<?= htmlspecialchars($memorial['delivery_province_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+            </label>
+            <label>
+              City / Municipality
+              <select data-delivery-city>
+                <option value="">Select city or municipality</option>
+              </select>
+              <input type="hidden" name="delivery_city_code" data-delivery-city-code value="<?= htmlspecialchars($memorial['delivery_city_code'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+              <input type="hidden" name="delivery_city_name" data-delivery-city-name value="<?= htmlspecialchars($memorial['delivery_city_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+            </label>
+            <label>
+              Barangay
+              <select data-delivery-barangay>
+                <option value="">Select barangay</option>
+              </select>
+              <input type="hidden" name="delivery_barangay_code" data-delivery-barangay-code value="<?= htmlspecialchars($memorial['delivery_barangay_code'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+              <input type="hidden" name="delivery_barangay_name" data-delivery-barangay-name value="<?= htmlspecialchars($memorial['delivery_barangay_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+            </label>
+            <label class="form-full">
+              Exact location
+              <input type="text" name="delivery_exact_address" value="<?= htmlspecialchars($memorial['delivery_exact_address'] ?? '', ENT_QUOTES, 'UTF-8') ?>" placeholder="House number, street, purok, landmark">
+              <span class="field-note">Enter the exact delivery point after selecting the PSGC address.</span>
+            </label>
             <label>
               Loved one's full name
               <input type="text" name="loved_one_name" value="<?= htmlspecialchars($memorial['loved_one_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>" required>
@@ -1795,10 +1960,14 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           <div class="form-grid">
             <label class="form-full">
               Gallery images
-              <input type="file" name="gallery_images[]" accept="image/jpeg,image/png,image/webp" multiple>
-              <span class="field-note"><?= count($galleryImages) ?> of <?= $planLimits['gallery_images'] ?> gallery images used. Upload JPG, PNG, or WebP photos under 3MB.</span>
+              <input type="file" name="gallery_images[]" data-gallery-images accept="image/jpeg,image/png,image/webp" multiple>
+              <span class="field-note" data-gallery-note><?= count($galleryImages) ?> of <?= $planLimits['gallery_images'] ?> gallery images used. Upload JPG, PNG, or WebP photos under 3MB.</span>
             </label>
-            <div class="image-preview-list form-full">
+            <div class="upload-action-row form-full">
+              <button class="button-secondary upload-inline-button" type="button" data-upload-gallery>Upload Gallery Images</button>
+              <span class="milestone-ajax-status" data-gallery-status></span>
+            </div>
+            <div class="image-preview-list form-full" data-gallery-preview>
               <?php if ($galleryImages): ?>
                 <?php foreach ($galleryImages as $image): ?>
                   <div class="image-preview-item">
@@ -1994,6 +2163,10 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           return 5;
         }
 
+        function currentGalleryImageLimit() {
+          return currentPlanType() === 'premium' ? 20 : 6;
+        }
+
         function currentMilestoneImageLimit() {
           return currentPlanType() === 'premium' ? 6 : 2;
         }
@@ -2082,6 +2255,144 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           });
         }
 
+        function fillSelect($select, items, placeholder, selectedCode) {
+          $select.empty();
+          $select.append($('<option>', { value: '', text: placeholder }));
+
+          items.forEach(function (item) {
+            const code = String(item.code || '');
+            const name = String(item.name || '');
+            $select.append($('<option>', {
+              value: code,
+              text: name,
+              selected: selectedCode !== '' && code === selectedCode
+            }));
+          });
+        }
+
+        function normalizeApiItems(payload) {
+          if (Array.isArray(payload)) {
+            return payload;
+          }
+
+          if (payload && Array.isArray(payload.data)) {
+            return payload.data;
+          }
+
+          return [];
+        }
+
+        async function fetchPsgcCollection(url) {
+          const response = await fetch(url, { headers: { Accept: 'application/json' } });
+          if (!response.ok) {
+            throw new Error('PSGC request failed with status ' + response.status);
+          }
+
+          const payload = await response.json();
+          return normalizeApiItems(payload);
+        }
+
+        const $deliveryRegion = $('[data-delivery-region]');
+        const $deliveryProvince = $('[data-delivery-province]');
+        const $deliveryCity = $('[data-delivery-city]');
+        const $deliveryBarangay = $('[data-delivery-barangay]');
+        const $deliveryRegionCode = $('[data-delivery-region-code]');
+        const $deliveryRegionName = $('[data-delivery-region-name]');
+        const $deliveryProvinceCode = $('[data-delivery-province-code]');
+        const $deliveryProvinceName = $('[data-delivery-province-name]');
+        const $deliveryCityCode = $('[data-delivery-city-code]');
+        const $deliveryCityName = $('[data-delivery-city-name]');
+        const $deliveryBarangayCode = $('[data-delivery-barangay-code]');
+        const $deliveryBarangayName = $('[data-delivery-barangay-name]');
+        let regionCache = [];
+        let provinceCache = [];
+        let cityCache = [];
+        let barangayCache = [];
+
+        function syncDeliveryHiddenInputs() {
+          const regionOption = $deliveryRegion.find('option:selected');
+          const provinceOption = $deliveryProvince.find('option:selected');
+          const cityOption = $deliveryCity.find('option:selected');
+          const barangayOption = $deliveryBarangay.find('option:selected');
+
+          $deliveryRegionCode.val($deliveryRegion.val() || '');
+          $deliveryRegionName.val(($deliveryRegion.val() && regionOption.length) ? regionOption.text() : '');
+          $deliveryProvinceCode.val($deliveryProvince.val() || '');
+          $deliveryProvinceName.val(($deliveryProvince.val() && provinceOption.length) ? provinceOption.text() : '');
+          $deliveryCityCode.val($deliveryCity.val() || '');
+          $deliveryCityName.val(($deliveryCity.val() && cityOption.length) ? cityOption.text() : '');
+          $deliveryBarangayCode.val($deliveryBarangay.val() || '');
+          $deliveryBarangayName.val(($deliveryBarangay.val() && barangayOption.length) ? barangayOption.text() : '');
+        }
+
+        async function loadRegions(selectedCode) {
+          regionCache = await fetchPsgcCollection('https://psgc.cloud/api/regions');
+          fillSelect($deliveryRegion, regionCache, 'Select region', selectedCode || $deliveryRegionCode.val());
+          syncDeliveryHiddenInputs();
+        }
+
+        async function loadProvinces(regionCode, selectedCode) {
+          if (!regionCode) {
+            provinceCache = [];
+            fillSelect($deliveryProvince, [], 'Select province', '');
+            fillSelect($deliveryCity, [], 'Select city or municipality', '');
+            fillSelect($deliveryBarangay, [], 'Select barangay', '');
+            syncDeliveryHiddenInputs();
+            return;
+          }
+
+          provinceCache = await fetchPsgcCollection('https://psgc.cloud/api/v1/provinces?region_code=' + encodeURIComponent(regionCode) + '&per_page=200');
+          fillSelect($deliveryProvince, provinceCache, provinceCache.length ? 'Select province' : 'No province required', selectedCode || $deliveryProvinceCode.val());
+
+          if (!provinceCache.length) {
+            $deliveryProvince.val('');
+            $deliveryProvince.prop('disabled', true);
+            $deliveryProvinceName.val('');
+            $deliveryProvinceCode.val('');
+            await loadCities(regionCode, '', $deliveryCityCode.val());
+          } else {
+            $deliveryProvince.prop('disabled', false);
+            fillSelect($deliveryCity, [], 'Select city or municipality', '');
+            fillSelect($deliveryBarangay, [], 'Select barangay', '');
+          }
+
+          syncDeliveryHiddenInputs();
+        }
+
+        async function loadCities(regionCode, provinceCode, selectedCode) {
+          if (!regionCode) {
+            cityCache = [];
+            fillSelect($deliveryCity, [], 'Select city or municipality', '');
+            fillSelect($deliveryBarangay, [], 'Select barangay', '');
+            syncDeliveryHiddenInputs();
+            return;
+          }
+
+          const params = new URLSearchParams({ per_page: '500' });
+          params.set('region_code', regionCode);
+          if (provinceCode) {
+            params.set('province_code', provinceCode);
+          }
+
+          cityCache = await fetchPsgcCollection('https://psgc.cloud/api/v1/cities-municipalities?' + params.toString());
+          fillSelect($deliveryCity, cityCache, 'Select city or municipality', selectedCode || $deliveryCityCode.val());
+          fillSelect($deliveryBarangay, [], 'Select barangay', '');
+          syncDeliveryHiddenInputs();
+        }
+
+        async function loadBarangays(cityCode, selectedCode) {
+          if (!cityCode) {
+            barangayCache = [];
+            fillSelect($deliveryBarangay, [], 'Select barangay', '');
+            syncDeliveryHiddenInputs();
+            return;
+          }
+
+          barangayCache = await fetchPsgcCollection('https://psgc.cloud/api/v1/cities-municipalities/' + encodeURIComponent(cityCode) + '/barangays?per_page=5000');
+          fillSelect($deliveryBarangay, barangayCache, 'Select barangay', selectedCode || $deliveryBarangayCode.val());
+          syncDeliveryHiddenInputs();
+        }
+
         function milestoneCanGenerate($box) {
           return $box.find('[data-milestone-id]').val() !== '0' && $box.find('[data-milestone-description]').val().trim() !== '';
         }
@@ -2126,6 +2437,28 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
 
         $('[data-milestone-description]').on('input', function () {
           syncMilestoneEnhancementButton($(this).closest('[data-milestone-box]'));
+        });
+
+        $deliveryRegion.on('change', async function () {
+          syncDeliveryHiddenInputs();
+          await loadProvinces($(this).val(), '');
+          await loadCities($(this).val(), $deliveryProvince.val() || '', '');
+          await loadBarangays('', '');
+        });
+
+        $deliveryProvince.on('change', async function () {
+          syncDeliveryHiddenInputs();
+          await loadCities($deliveryRegion.val() || '', $(this).val(), '');
+          await loadBarangays('', '');
+        });
+
+        $deliveryCity.on('change', async function () {
+          syncDeliveryHiddenInputs();
+          await loadBarangays($(this).val(), '');
+        });
+
+        $deliveryBarangay.on('change', function () {
+          syncDeliveryHiddenInputs();
         });
 
         $('[data-add-milestone]').on('click', function () {
@@ -2402,6 +2735,66 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           });
         });
 
+        $('[data-upload-gallery]').on('click', function () {
+          const $button = $(this);
+          const input = $('[data-gallery-images]')[0];
+          const files = Array.from(input.files || []);
+          const $preview = $('[data-gallery-preview]');
+          const $status = $('[data-gallery-status]');
+          const $note = $('[data-gallery-note]');
+          const galleryImageLimit = currentGalleryImageLimit();
+
+          if (!memorialId) {
+            setInlineStatus($status, 'Save the memorial details first before uploading gallery photos.', 'error');
+            return;
+          }
+
+          const validationMessage = validateImageFiles(files, galleryImageLimit, 'gallery photos');
+
+          if (validationMessage) {
+            setInlineStatus($status, validationMessage, 'error');
+            return;
+          }
+
+          $button.prop('disabled', true);
+          setInlineStatus($status, 'Uploading gallery photos...', 'success');
+
+          const formData = new FormData();
+          formData.append('ajax', '1');
+          formData.append('form_action', 'upload_gallery_images');
+          formData.append('memorial_id', memorialId);
+          formData.append('plan_type', currentPlanType());
+
+          files.forEach(function (file) {
+            formData.append('gallery_images[]', file);
+          });
+
+          $.ajax({
+            url: 'dashboard.php',
+            method: 'POST',
+            dataType: 'json',
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 90000
+          }).done(function (response) {
+            $preview.find('p').remove();
+            $preview.append(response.html || '');
+
+            if (response.count !== undefined && response.limit !== undefined) {
+              $note.text(response.count + ' of ' + response.limit + ' gallery images used. Upload JPG, PNG, or WebP photos under 3MB.');
+            }
+
+            $(input).val('');
+            setInlineStatus($status, response.message || 'Gallery photos uploaded.', 'success');
+          }).fail(function (xhr, textStatus) {
+            const timeoutMessage = 'Upload timed out. Try uploading smaller JPG photos.';
+            setInlineStatus($status, textStatus === 'timeout' ? timeoutMessage : ajaxErrorMessage(xhr, 'Gallery photos could not be uploaded. Try JPG photos under 3MB.'), 'error');
+          }).always(function () {
+            $button.prop('disabled', false);
+          });
+        });
+
         $('[data-delete-milestone]').on('click', function () {
           const $button = $(this);
           const $box = $button.closest('[data-milestone-box]');
@@ -2505,6 +2898,35 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
 
         refreshPlanAwareNotes();
         collapseUnusedMilestoneBoxes();
+
+        (async function initDeliveryAddressSelectors() {
+          try {
+            const savedRegionCode = $deliveryRegionCode.val() || '';
+            const savedProvinceCode = $deliveryProvinceCode.val() || '';
+            const savedCityCode = $deliveryCityCode.val() || '';
+            const savedBarangayCode = $deliveryBarangayCode.val() || '';
+
+            await loadRegions(savedRegionCode);
+
+            if (savedRegionCode) {
+              await loadProvinces(savedRegionCode, savedProvinceCode);
+              await loadCities(savedRegionCode, savedProvinceCode, savedCityCode);
+              await loadBarangays(savedCityCode, savedBarangayCode);
+            } else {
+              fillSelect($deliveryProvince, [], 'Select province', '');
+              fillSelect($deliveryCity, [], 'Select city or municipality', '');
+              fillSelect($deliveryBarangay, [], 'Select barangay', '');
+            }
+
+            syncDeliveryHiddenInputs();
+          } catch (error) {
+            console.error(error);
+            const $deliveryNote = $('[data-delivery-region]').siblings('.field-note');
+            if ($deliveryNote.length) {
+              $deliveryNote.text('Address lookup could not be loaded right now. You can save this later when the PSGC service is available.');
+            }
+          }
+        })();
       });
     </script>
   </body>

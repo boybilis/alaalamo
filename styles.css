@@ -1547,6 +1547,30 @@ h2 {
   justify-content: flex-start;
 }
 
+.delivery-recipient-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+  padding: 14px 16px;
+  border: 1px solid rgba(33, 76, 99, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+}
+
+.delivery-recipient-note strong {
+  color: var(--accent-dark);
+  font-size: 13px;
+}
+
+.delivery-recipient-note span {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .milestone-reveal-actions .button-secondary {
   border-color: rgba(33, 76, 99, 0.18);
   background: var(--beige);
@@ -2288,15 +2312,33 @@ a.memorial-resting-place:hover {
 .milestone-stack-section::before {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: -18%;
   z-index: 0;
   background:
-    radial-gradient(circle at 14% 22%, color-mix(in srgb, var(--memorial-secondary) 20%, transparent) 0%, transparent 42%),
-    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--memorial-primary) 12%, transparent) 0%, transparent 40%),
-    radial-gradient(circle at 48% 84%, color-mix(in srgb, var(--memorial-tertiary) 72%, var(--memorial-secondary) 28%) 0%, transparent 56%);
-  opacity: 0.9;
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--memorial-secondary) 30%, transparent) 0%, transparent 34%),
+    radial-gradient(circle at 82% 16%, color-mix(in srgb, var(--memorial-primary) 18%, transparent) 0%, transparent 36%),
+    radial-gradient(circle at 34% 78%, color-mix(in srgb, var(--memorial-secondary) 20%, var(--memorial-tertiary) 80%) 0%, transparent 42%),
+    radial-gradient(circle at 72% 70%, color-mix(in srgb, var(--memorial-primary) 12%, var(--memorial-tertiary) 88%) 0%, transparent 40%),
+    linear-gradient(135deg, color-mix(in srgb, var(--memorial-tertiary) 86%, transparent) 0%, color-mix(in srgb, var(--memorial-tertiary) 70%, var(--memorial-secondary) 30%) 100%);
+  opacity: 0.88;
   transform: translate3d(0, 0, 0) scale(1);
-  animation: milestoneSectionThemeFade 20s ease-in-out infinite alternate;
+  filter: blur(28px) saturate(1.04);
+  animation: milestoneAuroraDrift 28s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.milestone-stack-section::after {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 24% 34%, color-mix(in srgb, var(--memorial-secondary) 16%, transparent) 0%, transparent 30%),
+    radial-gradient(circle at 76% 48%, color-mix(in srgb, var(--memorial-primary) 10%, transparent) 0%, transparent 28%),
+    radial-gradient(circle at 50% 86%, color-mix(in srgb, var(--memorial-secondary) 12%, transparent) 0%, transparent 26%);
+  opacity: 0.55;
+  filter: blur(36px);
+  animation: milestoneAuroraFloat 22s ease-in-out infinite alternate;
   pointer-events: none;
 }
 
@@ -2321,21 +2363,33 @@ a.memorial-resting-place:hover {
   display: none;
 }
 
-@keyframes milestoneSectionThemeFade {
+@keyframes milestoneAuroraDrift {
   0% {
-    transform: translate3d(-2%, -2%, 0) scale(1);
-    opacity: 0.76;
-    filter: saturate(0.96);
+    transform: translate3d(-3%, -2%, 0) scale(1.02) rotate(0deg);
+    opacity: 0.78;
   }
   50% {
-    transform: translate3d(2%, 3%, 0) scale(1.04);
-    opacity: 0.92;
-    filter: saturate(1.03);
+    transform: translate3d(2%, 4%, 0) scale(1.08) rotate(2deg);
+    opacity: 0.94;
   }
   100% {
-    transform: translate3d(4%, -1%, 0) scale(1.07);
-    opacity: 0.8;
-    filter: saturate(0.98);
+    transform: translate3d(5%, -2%, 0) scale(1.12) rotate(-2deg);
+    opacity: 0.84;
+  }
+}
+
+@keyframes milestoneAuroraFloat {
+  0% {
+    transform: translate3d(-2%, 0, 0) scale(1);
+    opacity: 0.42;
+  }
+  50% {
+    transform: translate3d(3%, -2%, 0) scale(1.08);
+    opacity: 0.62;
+  }
+  100% {
+    transform: translate3d(-1%, 3%, 0) scale(1.12);
+    opacity: 0.48;
   }
 }
 
