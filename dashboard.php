@@ -165,15 +165,15 @@ if (isset($_GET['psgc_lookup'])) {
         $items = [];
 
         if ($lookup === 'regions') {
-            $items = psgc_cloud_fetch('https://psgc.cloud/api/regions');
+            $items = psgc_cloud_fetch('https://psgc.cloud/api/v2/regions');
         } elseif ($lookup === 'provinces') {
             $regionCode = clean_input((string) ($_GET['region_code'] ?? ''));
             if ($regionCode === '') {
                 json_response(['ok' => true, 'items' => []]);
             }
-            $items = psgc_cloud_fetch('https://psgc.cloud/api/v1/provinces?region_code=' . urlencode($regionCode) . '&per_page=200');
+            $items = psgc_cloud_fetch('https://psgc.cloud/api/v2/regions/' . rawurlencode($regionCode) . '/provinces');
             if (!$items) {
-                $allProvinces = psgc_cloud_fetch('https://psgc.cloud/api/provinces');
+                $allProvinces = psgc_cloud_fetch('https://psgc.cloud/api/v2/provinces');
                 $items = array_values(array_filter($allProvinces, static function (array $item) use ($regionCode): bool {
                     $itemRegionCode = (string) ($item['region_code'] ?? $item['regionCode'] ?? '');
                     return $itemRegionCode === $regionCode;
@@ -188,16 +188,16 @@ if (isset($_GET['psgc_lookup'])) {
             }
 
             if ($provinceCode !== '') {
-                $items = psgc_cloud_fetch('https://psgc.cloud/api/v1/provinces/' . rawurlencode($provinceCode) . '/cities-municipalities?per_page=500');
+                $items = psgc_cloud_fetch('https://psgc.cloud/api/v2/provinces/' . rawurlencode($provinceCode) . '/cities-municipalities');
             } else {
-                $items = psgc_cloud_fetch('https://psgc.cloud/api/v1/cities-municipalities?region_code=' . urlencode($regionCode) . '&per_page=500');
+                $items = psgc_cloud_fetch('https://psgc.cloud/api/v2/regions/' . rawurlencode($regionCode) . '/cities-municipalities');
             }
         } elseif ($lookup === 'barangays') {
             $cityCode = clean_input((string) ($_GET['city_code'] ?? ''));
             if ($cityCode === '') {
                 json_response(['ok' => true, 'items' => []]);
             }
-            $items = psgc_cloud_fetch('https://psgc.cloud/api/v1/cities-municipalities/' . rawurlencode($cityCode) . '/barangays?per_page=5000');
+            $items = psgc_cloud_fetch('https://psgc.cloud/api/v2/cities-municipalities/' . rawurlencode($cityCode) . '/barangays');
         } else {
             json_response(['ok' => false, 'message' => 'Invalid PSGC lookup request.'], 422);
         }
@@ -673,6 +673,100 @@ function psgc_cloud_fetch(string $url): array
     }
 
     return $items;
+}
+
+function remote_binary_fetch(string $url): string
+{
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('cURL is required for QR download.');
+    }
+
+    $curl = curl_init($url);
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT => 20,
+    ]);
+
+    $response = curl_exec($curl);
+    $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    $error = curl_error($curl);
+    curl_close($curl);
+
+    if ($response === false || $status < 200 || $status >= 300) {
+        throw new RuntimeException('QR image request failed: HTTP ' . $status . ' ' . $error);
+    }
+
+    return (string) $response;
+}
+
+function output_branded_qr_download(string $qrDataUrl, string $title, string $filename): never
+{
+    if (!function_exists('imagecreatetruecolor')) {
+        redirect_to($qrDataUrl);
+    }
+
+    $qrBinary = remote_binary_fetch($qrDataUrl);
+    $qrImage = @imagecreatefromstring($qrBinary);
+
+    if (!$qrImage) {
+        redirect_to($qrDataUrl);
+    }
+
+    $width = 1200;
+    $height = 1600;
+    $canvas = imagecreatetruecolor($width, $height);
+
+    $paper = imagecolorallocate($canvas, 250, 247, 242);
+    $navy = imagecolorallocate($canvas, 33, 76, 99);
+    $muted = imagecolorallocate($canvas, 97, 107, 117);
+    $beige = imagecolorallocate($canvas, 234, 220, 200);
+    $shadow = imagecolorallocatealpha($canvas, 24, 41, 54, 110);
+    $white = imagecolorallocate($canvas, 255, 255, 255);
+
+    imagefill($canvas, 0, 0, $paper);
+
+    imagefilledellipse($canvas, 240, 220, 380, 380, $beige);
+    imagefilledellipse($canvas, 1010, 320, 260, 260, $beige);
+    imagefilledellipse($canvas, 980, 1330, 320, 320, $beige);
+
+    imagefilledrectangle($canvas, 140, 170, 1060, 210, $navy);
+
+    $logoPath = __DIR__ . '/assets/alaalamo-logo-mark.png';
+    if (is_file($logoPath)) {
+        $logoBinary = (string) @file_get_contents($logoPath);
+        $logoImage = $logoBinary !== '' ? @imagecreatefromstring($logoBinary) : false;
+        if ($logoImage) {
+            imagecopyresampled($canvas, $logoImage, 500, 62, 0, 0, 200, 200, imagesx($logoImage), imagesy($logoImage));
+            imagedestroy($logoImage);
+        }
+    }
+
+    imagestring($canvas, 5, 500, 276, 'AlaalaMo', $navy);
+    imagestring($canvas, 3, 392, 318, 'Scan to open the digital memorial', $muted);
+
+    imagefilledrectangle($canvas, 286, 434, 914, 1062, $shadow);
+    imagefilledrectangle($canvas, 260, 408, 940, 1088, $white);
+    imagecopyresampled($canvas, $qrImage, 310, 458, 0, 0, 580, 580, imagesx($qrImage), imagesy($qrImage));
+    imagedestroy($qrImage);
+
+    $titleLines = wordwrap($title, 24, "\n", true);
+    $lineY = 1118;
+    foreach (explode("\n", $titleLines) as $line) {
+        $lineWidth = imagefontwidth(5) * strlen($line);
+        $lineX = max(80, (int) (($width - $lineWidth) / 2));
+        imagestring($canvas, 5, $lineX, $lineY, $line, $navy);
+        $lineY += 28;
+    }
+
+    imagestring($canvas, 3, 404, 1298, 'Point your camera at the QR code', $muted);
+    imagestring($canvas, 3, 340, 1334, 'to view the memorial on any mobile device.', $muted);
+
+    header('Content-Type: image/png');
+    header('Content-Disposition: attachment; filename="' . preg_replace('/[^a-zA-Z0-9_-]+/', '-', $filename) . '.png"');
+    imagepng($canvas);
+    imagedestroy($canvas);
+    exit;
 }
 
 function memorial_expiration_at(?array $memorial): ?DateTimeImmutable
@@ -1695,11 +1789,27 @@ $currentMemorialCountdown = memorial_expiration_countdown($memorial);
 $publicUrl = rtrim(app_base_url(), '/') . '/memorial.php?t=' . urlencode($qrGroup['public_token']);
 $previewUrl = $publicUrl . '&preview=1';
 $qrUrl = $hasLiveMemorials ? 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($publicUrl) : '';
+$qrDownloadUrl = $hasLiveMemorials ? '/dashboard.php?download_qr=1' . ($memorial ? '&memorial_id=' . (int) $memorial['id'] : '') : '';
 $regularAdditionalPrice = additional_memorial_price_for_type('regular');
 $premiumAdditionalPrice = additional_memorial_price_for_type('premium');
 $additionalCost = 0;
 foreach (array_slice($memorials, 1) as $additionalMemorial) {
     $additionalCost += additional_memorial_price_for_type(memorial_plan_type($additionalMemorial, $qrGroup));
+}
+
+if (isset($_GET['download_qr']) && $hasLiveMemorials) {
+    $downloadTitle = '';
+    if (count($memorials) > 1) {
+        $ownerLastName = trim((string) ($user['last_name'] ?? ''));
+        $downloadTitle = $ownerLastName !== '' ? $ownerLastName . "'s Family Memorial" : 'Family Memorial';
+    } else {
+        $soloMemorial = $memorial ?: ($paidMemorials[0] ?? null);
+        $downloadTitle = trim((string) ($soloMemorial['loved_one_name'] ?? 'Memorial QR'));
+    }
+
+    $downloadFilename = $downloadTitle !== '' ? $downloadTitle : 'AlaalaMo-QR';
+    $downloadQrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=900x900&data=' . urlencode($publicUrl);
+    output_branded_qr_download($downloadQrImageUrl, $downloadTitle, $downloadFilename);
 }
 ?>
 <!doctype html>
@@ -1762,6 +1872,7 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           <div class="qr-panel-actions">
             <a class="button-primary" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Live Memorial</a>
             <a class="button-info" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
+            <a class="button-secondary" href="<?= htmlspecialchars($qrDownloadUrl, ENT_QUOTES, 'UTF-8') ?>">Download QR Card</a>
           </div>
           <p><?= count($paidMemorials) ?> paid of <?= count($memorials) ?> prepared memorials in this QR. Additional memorials are PHP <?= number_format($regularAdditionalPrice) ?> for Standard or PHP <?= number_format($premiumAdditionalPrice) ?> for Premium.</p>
           <?php if ($additionalCost > 0): ?>
