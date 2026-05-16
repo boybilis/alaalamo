@@ -70,7 +70,7 @@ a { color: inherit; text-decoration: none; }
 .brand, .nav-links { display: flex; align-items: center; }
 .brand { gap: 10px; font-weight: 800; letter-spacing: 0; }
 .brand-highlight {
-  color: inherit;
+  color: var(--accent-dark);
   padding: 0 0.08em;
   font-weight: 800;
 }
@@ -257,7 +257,7 @@ h2 {
 .section-quote {
   width: min(760px, 100%);
   margin: 24px 0 0;
-  color: var(--muted);
+  color: #496273;
   font-size: clamp(18px, 2vw, 22px);
   line-height: 1.7;
 }
@@ -283,11 +283,12 @@ h2 {
   height: 38px;
   margin-bottom: 18px;
   border-radius: 50%;
-  background: var(--beige);
-  color: var(--accent-dark);
+  background: rgba(47, 111, 143, 0.12);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(47, 111, 143, 0.12);
   font-size: 16px;
 }
-.intro-strip span { color: var(--accent-dark); font-size: 13px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.intro-strip span { color: var(--accent); font-size: 13px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
 .intro-strip p { margin: 12px 0 0; color: var(--muted); font-size: 16px; line-height: 1.55; }
 
 .features-section {
@@ -382,7 +383,7 @@ h2 {
 
 .live-demo-panel > span {
   display: block;
-  color: var(--accent-dark);
+  color: var(--accent);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -487,7 +488,7 @@ h2 {
   display: block;
   padding: 0;
   background: transparent;
-  color: var(--accent-dark);
+  color: var(--accent);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.1em;
@@ -505,8 +506,9 @@ h2 {
   height: 42px;
   margin-top: 16px;
   border-radius: 50%;
-  background: var(--beige);
-  color: var(--accent-dark);
+  background: rgba(47, 111, 143, 0.12);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(47, 111, 143, 0.12);
   font-size: 18px;
 }
 
@@ -517,7 +519,7 @@ h2 {
 
 .feature-card h3 {
   margin: 18px 0 0;
-  color: inherit;
+  color: #1f4054;
   font-size: 21px;
   line-height: 1.15;
   letter-spacing: 0;
@@ -782,6 +784,10 @@ h2 {
   font-weight: 800;
 }
 
+.plan-link:hover {
+  background: var(--accent);
+}
+
 .signup-section {
   background:
     linear-gradient(90deg, rgba(234, 220, 200, 0.72), rgba(251, 250, 247, 0.92)),
@@ -978,6 +984,11 @@ h2 {
 
 .footer-brand .brand-mark {
   box-shadow: none;
+}
+
+.footer-brand .brand-highlight,
+.footer-links a i {
+  color: #9fd0ea;
 }
 
 .site-footer p {
