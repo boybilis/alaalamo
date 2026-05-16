@@ -1534,8 +1534,17 @@ h2 {
   background: var(--beige-soft);
 }
 
+.milestone-box-hidden {
+  display: none;
+}
+
 .milestone-box h3 {
   margin: 0 0 16px;
+}
+
+.milestone-reveal-actions {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .milestone-ai-panel {

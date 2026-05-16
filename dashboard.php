@@ -1710,11 +1710,14 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
             Add up to <?= $planLimits['milestones'] ?> milestones. Each one can have up to
             <?= $planLimits['milestone_images'] ?> images and <?= $planLimits['milestone_characters'] ?> characters.
           </p>
-
+          <?php
+            $savedMilestoneCount = count($milestones);
+            $initialVisibleMilestones = max(1, min($planLimits['milestones'], $savedMilestoneCount + 1));
+          ?>
           <?php for ($i = 0; $i < $planLimits['milestones']; $i++): ?>
             <?php $milestone = $milestones[$i] ?? null; ?>
             <?php $imagesForMilestone = $milestone ? ($milestoneImages[(int) $milestone['id']] ?? []) : []; ?>
-            <div class="milestone-box" data-milestone-box>
+            <div class="milestone-box<?= $i >= $initialVisibleMilestones ? ' milestone-box-hidden' : '' ?>" data-milestone-box data-milestone-index="<?= $i ?>">
               <h3>Milestone <?= $i + 1 ?></h3>
               <div class="form-grid">
                 <input type="hidden" name="milestone_id[]" data-milestone-id value="<?= (int) ($milestone['id'] ?? 0) ?>">
@@ -1778,6 +1781,9 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
               </div>
             </div>
           <?php endfor; ?>
+          <div class="milestone-reveal-actions">
+            <button class="button-secondary" type="button" data-add-milestone <?= $initialVisibleMilestones >= $planLimits['milestones'] ? 'hidden' : '' ?>>Add Another Milestone</button>
+          </div>
         </section>
 
         <section class="form-section">
@@ -1923,6 +1929,7 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
       $(function () {
         const memorialId = <?= (int) ($memorial['id'] ?? 0) ?>;
         const profileImageLimit = <?= (int) $planLimits['profile_images'] ?>;
+        const initialSavedMilestoneCount = <?= (int) count($milestones) ?>;
 
         function setStatus($box, message, type) {
           const $status = $box.find('[data-milestone-status]');
@@ -1989,6 +1996,64 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
 
         function currentMilestoneImageLimit() {
           return currentPlanType() === 'premium' ? 6 : 2;
+        }
+
+        function currentMilestoneFormLimit() {
+          return currentPlanType() === 'premium' ? 5 : 2;
+        }
+
+        function visibleMilestoneBoxes() {
+          return $('[data-milestone-box]').filter(function () {
+            return !$(this).hasClass('milestone-box-hidden');
+          });
+        }
+
+        function updateAddMilestoneButton() {
+          const $button = $('[data-add-milestone]');
+          if (!$button.length) {
+            return;
+          }
+
+          $button.prop('hidden', visibleMilestoneBoxes().length >= currentMilestoneFormLimit());
+        }
+
+        function revealNextMilestoneBox() {
+          if (visibleMilestoneBoxes().length >= currentMilestoneFormLimit()) {
+            updateAddMilestoneButton();
+            return;
+          }
+
+          const $nextHidden = $('[data-milestone-box].milestone-box-hidden').first();
+          if ($nextHidden.length) {
+            $nextHidden.removeClass('milestone-box-hidden');
+            updateAddMilestoneButton();
+            $nextHidden.find('[data-milestone-title]').trigger('focus');
+          }
+        }
+
+        function collapseUnusedMilestoneBoxes() {
+          const limit = currentMilestoneFormLimit();
+          let visibleUnsaved = 0;
+
+          $('[data-milestone-box]').each(function (index) {
+            const $box = $(this);
+            const milestoneId = String($box.find('[data-milestone-id]').val() || '0');
+            const isSaved = milestoneId !== '0';
+
+            if (isSaved || index < initialSavedMilestoneCount) {
+              $box.removeClass('milestone-box-hidden');
+              return;
+            }
+
+            if (visibleUnsaved === 0 && index < limit) {
+              $box.removeClass('milestone-box-hidden');
+              visibleUnsaved++;
+            } else {
+              $box.addClass('milestone-box-hidden');
+            }
+          });
+
+          updateAddMilestoneButton();
         }
 
         function refreshPlanAwareNotes() {
@@ -2063,6 +2128,10 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           syncMilestoneEnhancementButton($(this).closest('[data-milestone-box]'));
         });
 
+        $('[data-add-milestone]').on('click', function () {
+          revealNextMilestoneBox();
+        });
+
         $('[data-get-location]').on('click', function () {
           const $button = $(this);
           const $status = $('[data-location-status]');
@@ -2122,6 +2191,7 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
             $box.find('[data-milestone-images], [data-upload-milestone], [data-delete-milestone]').prop('disabled', false);
             syncMilestoneEnhancementButton($box);
             $box.find('[data-milestone-images]').siblings('.field-note').text('Maximum <?= $planLimits['milestone_images'] ?> images for this milestone. Upload JPG, PNG, or WebP photos under 3MB.');
+            updateAddMilestoneButton();
             setStatus($box, response.message || 'Milestone saved.', 'success');
           }).fail(function (xhr) {
             setStatus($box, ajaxErrorMessage(xhr, 'Milestone could not be saved.'), 'error');
@@ -2367,6 +2437,7 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
             $box.find('[data-ai-saved-text]').text('No enhanced text saved yet.');
             $box.find('[data-milestone-preview]').html('<p>No milestone images yet.</p>');
             $box.find('.field-note').text('Save this milestone first, then upload images for it.');
+            collapseUnusedMilestoneBoxes();
             setStatus($box, response.message || 'Milestone deleted.', 'success');
           }).fail(function (xhr) {
             $button.prop('disabled', false);
@@ -2429,9 +2500,11 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
 
         $('select[name="plan_type"]').on('change', function () {
           refreshPlanAwareNotes();
+          collapseUnusedMilestoneBoxes();
         });
 
         refreshPlanAwareNotes();
+        collapseUnusedMilestoneBoxes();
       });
     </script>
   </body>
