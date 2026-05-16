@@ -3447,6 +3447,25 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
             }, 1600);
           }
         });
+        function blobToDataUrl(blob) {
+          return new Promise(function (resolve, reject) {
+            const reader = new FileReader();
+            reader.onload = function () { resolve(String(reader.result || '')); };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
+
+        function waitForImage(image) {
+          if (image.complete && image.naturalWidth > 0) {
+            return Promise.resolve();
+          }
+
+          return new Promise(function (resolve, reject) {
+            image.addEventListener('load', resolve, { once: true });
+            image.addEventListener('error', reject, { once: true });
+          });
+        }
 
         $('[data-download-qr]').on('click', async function (event) {
           const printCard = document.querySelector('.qr-preview-card');
@@ -3459,6 +3478,11 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
 
           const button = event.currentTarget;
           const originalText = button.textContent;
+          const qrShell = printCard.querySelector('.qr-preview-shell');
+          const qrImage = qrShell ? qrShell.querySelector('img') : null;
+          const originalQrSrc = qrImage ? qrImage.getAttribute('src') : '';
+          const originalShellPosition = qrShell ? qrShell.style.position : '';
+          let qrCaptureLayer = null;
           const fileBase = String(button.getAttribute('data-download-name') || 'AlaalaMo-QR')
             .trim()
             .replace(/[^a-z0-9_-]+/gi, '-')
@@ -3469,6 +3493,26 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
           button.style.pointerEvents = 'none';
 
           try {
+            if (qrShell && qrImage && originalQrSrc) {
+              const response = await fetch(qrImage.currentSrc || originalQrSrc, {
+                cache: 'no-store',
+                credentials: 'same-origin'
+              });
+
+              if (!response.ok) {
+                throw new Error('QR image could not be prepared.');
+              }
+
+              qrCaptureLayer = document.createElement('img');
+              qrCaptureLayer.alt = '';
+              qrCaptureLayer.setAttribute('aria-hidden', 'true');
+              qrCaptureLayer.src = await blobToDataUrl(await response.blob());
+              qrCaptureLayer.style.cssText = 'position:absolute;left:18px;top:18px;width:calc(100% - 36px);height:calc(100% - 36px);object-fit:contain;border-radius:16px;z-index:2;';
+              qrShell.style.position = 'relative';
+              qrShell.appendChild(qrCaptureLayer);
+              await waitForImage(qrCaptureLayer);
+            }
+
             const canvas = await window.html2canvas(printCard, {
               backgroundColor: null,
               scale: 3,
@@ -3487,6 +3531,14 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
             console.error(error);
             button.textContent = 'Download failed';
           } finally {
+            if (qrCaptureLayer) {
+              qrCaptureLayer.remove();
+            }
+
+            if (qrShell) {
+              qrShell.style.position = originalShellPosition;
+            }
+
             window.setTimeout(function () {
               button.textContent = originalText;
               button.style.pointerEvents = '';
