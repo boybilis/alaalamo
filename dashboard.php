@@ -2127,20 +2127,6 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
               <?= htmlspecialchars(count($memorials) > 1 ? 'Family Remembrance' : (trim((string) ($memorial['loved_one_name'] ?? 'Memorial Profile')) !== '' ? (string) $memorial['loved_one_name'] : 'Memorial Profile'), ENT_QUOTES, 'UTF-8') ?>
             </p>
           </div>
-          <div class="qr-print-card" data-qr-print-card aria-hidden="true">
-            <div class="qr-print-brand">
-              <span class="brand-mark" aria-hidden="true">
-                <img class="brand-mark-image" src="assets/alaalamo-logo-mark.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time())) ?>" alt="">
-              </span>
-              <span class="brand-highlight">AlaalaMo</span>
-            </div>
-            <div class="qr-print-shell">
-              <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
-            </div>
-            <p class="qr-print-title">
-              <?= htmlspecialchars(count($memorials) > 1 ? 'Family Remembrance' : (trim((string) ($memorial['loved_one_name'] ?? 'Memorial Profile')) !== '' ? (string) $memorial['loved_one_name'] : 'Memorial Profile'), ENT_QUOTES, 'UTF-8') ?>
-            </p>
-          </div>
           <div class="qr-actions-card">
             <div class="qr-panel-actions">
               <a class="button-primary" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Live Memorial</a>
@@ -2170,7 +2156,7 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
                 </label>
                 <button class="button-secondary" type="submit">Activate Account Using Voucher</button>
                 <span class="field-note"><?= $availableVoucherCount > 0 ? $availableVoucherCount . ' unused Premium voucher' . ($availableVoucherCount === 1 ? '' : 's') . ' available on this account.' : 'Voucher codes are emailed after every 5 qualified paid referrals.' ?></span>
-              </form>
+        </form>
             <?php endif; ?>
           </div>
         <?php else: ?>
@@ -2608,6 +2594,22 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
         </div>
       </div>
     </main>
+    <?php if ($hasLiveMemorials && $qrUrl): ?>
+      <div class="qr-print-card" data-qr-print-card aria-hidden="true">
+        <div class="qr-print-brand">
+          <span class="brand-mark" aria-hidden="true">
+            <img class="brand-mark-image" src="assets/alaalamo-logo-mark.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time())) ?>" alt="">
+          </span>
+          <span class="brand-highlight">AlaalaMo</span>
+        </div>
+        <div class="qr-print-shell">
+          <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">
+        </div>
+        <p class="qr-print-title">
+          <?= htmlspecialchars(count($memorials) > 1 ? 'Family Remembrance' : (trim((string) ($memorial['loved_one_name'] ?? 'Memorial Profile')) !== '' ? (string) $memorial['loved_one_name'] : 'Memorial Profile'), ENT_QUOTES, 'UTF-8') ?>
+        </p>
+      </div>
+    <?php endif; ?>
     <?php if ($showEarlyBirdModal): ?>
       <div class="early-bird-modal is-open" data-early-bird-modal aria-hidden="false">
         <div class="early-bird-backdrop"></div>
