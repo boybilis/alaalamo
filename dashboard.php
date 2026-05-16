@@ -1995,7 +1995,8 @@ $showEarlyBirdModal = $memorial
     && empty($memorial['early_bird_notice_shown_at']);
 $publicUrl = rtrim(app_base_url(), '/') . '/memorial.php?t=' . urlencode($qrGroup['public_token']);
 $previewUrl = $publicUrl . '&preview=1';
-$qrUrl = $hasLiveMemorials ? 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($publicUrl) : '';
+$qrImageRemoteUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($publicUrl);
+$qrUrl = $hasLiveMemorials ? '/dashboard.php?qr_image=1' . ($memorial ? '&memorial_id=' . (int) $memorial['id'] : '') : '';
 $qrDownloadUrl = $hasLiveMemorials ? '/dashboard.php?download_qr=1' . ($memorial ? '&memorial_id=' . (int) $memorial['id'] : '') : '';
 $downloadTitle = count($memorials) > 1
     ? 'Family Remembrance'
@@ -2006,6 +2007,19 @@ $premiumAdditionalPrice = additional_memorial_price_for_type('premium');
 $additionalCost = 0;
 foreach (array_slice($memorials, 1) as $additionalMemorial) {
     $additionalCost += additional_memorial_price_for_type(memorial_plan_type($additionalMemorial, $qrGroup));
+}
+
+if (isset($_GET['qr_image']) && $hasLiveMemorials) {
+    try {
+        $qrBinary = remote_binary_fetch($qrImageRemoteUrl);
+        header('Content-Type: image/png');
+        header('Cache-Control: private, max-age=300');
+        echo $qrBinary;
+    } catch (Throwable $exception) {
+        error_log('QR preview image failed: ' . $exception->getMessage());
+        http_response_code(502);
+    }
+    exit;
 }
 
 if (isset($_GET['download_qr']) && $hasLiveMemorials) {
