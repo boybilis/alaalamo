@@ -766,27 +766,88 @@ function output_branded_qr_download(string $qrDataUrl, string $title, string $fi
     }
 
     $width = 600;
-    $height = 600;
+    $height = 760;
     $canvas = imagecreatetruecolor($width, $height);
 
     $paper = imagecolorallocate($canvas, 245, 243, 239);
     $white = imagecolorallocate($canvas, 255, 255, 255);
     $grayBorder = imagecolorallocate($canvas, 126, 126, 126);
+    $ink = imagecolorallocate($canvas, 33, 76, 99);
+    $softShadow = imagecolorallocatealpha($canvas, 24, 41, 54, 110);
 
     imagefill($canvas, 0, 0, $paper);
+
+    $brandMarkPath = __DIR__ . '/assets/alaalamo-logo-mark.png';
+    $brandMark = is_file($brandMarkPath) ? @imagecreatefrompng($brandMarkPath) : null;
+    $brandCircleSize = 52;
+    $brandY = 42;
+    $brandCircleX = (int) (($width - 200) / 2);
+    imagefilledellipse($canvas, $brandCircleX + (int) ($brandCircleSize / 2), $brandY + (int) ($brandCircleSize / 2), $brandCircleSize, $brandCircleSize, $white);
+    imagefilledellipse($canvas, $brandCircleX + (int) ($brandCircleSize / 2), $brandY + (int) ($brandCircleSize / 2) + 4, $brandCircleSize, $brandCircleSize, $softShadow);
+    imagefilledellipse($canvas, $brandCircleX + (int) ($brandCircleSize / 2), $brandY + (int) ($brandCircleSize / 2), $brandCircleSize, $brandCircleSize, $white);
+
+    if ($brandMark) {
+        imagealphablending($canvas, true);
+        imagesavealpha($canvas, true);
+        imagecopyresampled($canvas, $brandMark, $brandCircleX + 5, $brandY + 5, 0, 0, $brandCircleSize - 10, $brandCircleSize - 10, imagesx($brandMark), imagesy($brandMark));
+        imagedestroy($brandMark);
+    }
+
+    $fontPath = 'C:\Windows\Fonts\georgiab.ttf';
+    $fallbackFontPath = 'C:\Windows\Fonts\Georgia.ttf';
+    $titleFontPath = is_file($fontPath) ? $fontPath : (is_file($fallbackFontPath) ? $fallbackFontPath : '');
+
+    if ($titleFontPath !== '') {
+        imagettftext($canvas, 24, 0, $brandCircleX + 66, $brandY + 37, $ink, $titleFontPath, 'AlaalaMo');
+    } else {
+        imagestring($canvas, 5, $brandCircleX + 66, $brandY + 16, 'AlaalaMo', $ink);
+    }
 
     $frameOuter = 510;
     $frameInner = 486;
     $frameX = (int) (($width - $frameOuter) / 2);
-    $frameY = (int) (($height - $frameOuter) / 2);
+    $frameY = 132;
     imagefilledroundedrectangle($canvas, $frameX, $frameY, $frameX + $frameOuter, $frameY + $frameOuter, 18, $grayBorder);
     imagefilledroundedrectangle($canvas, $frameX + 12, $frameY + 12, $frameX + 12 + $frameInner, $frameY + 12 + $frameInner, 14, $white);
 
     $qrSize = 450;
     $qrX = (int) (($width - $qrSize) / 2);
-    $qrY = (int) (($height - $qrSize) / 2);
+    $qrY = $frameY + (int) (($frameOuter - $qrSize) / 2);
     imagecopyresampled($canvas, $qrImage, $qrX, $qrY, 0, 0, $qrSize, $qrSize, imagesx($qrImage), imagesy($qrImage));
     imagedestroy($qrImage);
+
+    $downloadTitle = strtoupper(trim($title));
+
+    if ($titleFontPath !== '') {
+        $wrappedLines = [];
+        $currentLine = '';
+        foreach (preg_split('/\s+/', $downloadTitle) ?: [] as $word) {
+            $candidate = $currentLine === '' ? $word : $currentLine . ' ' . $word;
+            $box = imagettfbbox(18, 0, $titleFontPath, $candidate);
+            $lineWidth = $box ? (int) abs($box[2] - $box[0]) : 0;
+
+            if ($lineWidth > 250 && $currentLine !== '') {
+                $wrappedLines[] = $currentLine;
+                $currentLine = $word;
+            } else {
+                $currentLine = $candidate;
+            }
+        }
+
+        if ($currentLine !== '') {
+            $wrappedLines[] = $currentLine;
+        }
+
+        $titleY = 690;
+        foreach ($wrappedLines as $lineIndex => $line) {
+            $box = imagettfbbox(18, 0, $titleFontPath, $line);
+            $lineWidth = $box ? (int) abs($box[2] - $box[0]) : 0;
+            $lineX = (int) (($width - $lineWidth) / 2);
+            imagettftext($canvas, 18, 0, $lineX, $titleY + ($lineIndex * 24), $ink, $titleFontPath, $line);
+        }
+    } else {
+        imagestring($canvas, 4, (int) (($width - (strlen($downloadTitle) * 8)) / 2), 684, $downloadTitle, $ink);
+    }
 
     header('Content-Type: image/png');
     header('Content-Disposition: attachment; filename="' . preg_replace('/[^a-zA-Z0-9_-]+/', '-', $filename) . '.png"');
@@ -1946,8 +2007,7 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
 if (isset($_GET['download_qr']) && $hasLiveMemorials) {
     $downloadTitle = '';
     if (count($memorials) > 1) {
-        $ownerLastName = trim((string) ($user['last_name'] ?? ''));
-        $downloadTitle = $ownerLastName !== '' ? $ownerLastName . "'s Family Memorial" : 'Family Memorial';
+        $downloadTitle = 'Family Remembrance';
     } else {
         $soloMemorial = $memorial ?: ($paidMemorials[0] ?? null);
         $downloadTitle = trim((string) ($soloMemorial['loved_one_name'] ?? 'Memorial QR'));
