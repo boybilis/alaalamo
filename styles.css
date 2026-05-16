@@ -1125,6 +1125,12 @@ h2 {
   margin-bottom: 28px;
 }
 
+.auth-brand .brand-mark {
+  width: 36px;
+  height: 36px;
+  flex-basis: 36px;
+}
+
 .auth-card h1 {
   color: var(--ink);
   font-size: clamp(32px, 6vw, 48px);
@@ -1180,6 +1186,42 @@ h2 {
 .auth-alert-success {
   background: #e8f5ef;
   color: #1f6848;
+}
+
+.mobile-memorial .auth-alert {
+  border: 1px solid color-mix(in srgb, var(--memorial-secondary) 38%, rgba(31, 41, 51, 0.12));
+  background: color-mix(in srgb, var(--memorial-tertiary) 82%, var(--memorial-secondary) 18%);
+  color: var(--memorial-tertiary-text);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--memorial-secondary) 16%, rgba(24, 41, 54, 0.08));
+}
+
+.mobile-memorial .auth-alert-success {
+  border-color: color-mix(in srgb, var(--memorial-primary) 30%, transparent);
+  background: color-mix(in srgb, var(--memorial-primary) 14%, var(--memorial-tertiary) 86%);
+  color: var(--memorial-tertiary-text);
+}
+
+.mobile-memorial .auth-alert-error {
+  border-color: color-mix(in srgb, #a63d2d 42%, transparent);
+  background: color-mix(in srgb, #a63d2d 12%, var(--memorial-tertiary) 88%);
+  color: var(--memorial-tertiary-text);
+}
+
+.shared-photos-section .auth-alert,
+.messages-love-section .auth-alert {
+  margin-top: 14px;
+}
+
+.shared-photos-section .auth-alert {
+  border-color: color-mix(in srgb, var(--memorial-primary) 34%, transparent);
+  background: color-mix(in srgb, var(--memorial-primary) 16%, var(--memorial-secondary) 84%);
+  color: var(--memorial-secondary-text);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--memorial-primary) 14%, rgba(24, 41, 54, 0.08));
+}
+
+.shared-photos-section .auth-alert-success,
+.shared-photos-section .auth-alert-error {
+  color: var(--memorial-secondary-text);
 }
 
 .payment-summary {
@@ -2215,7 +2257,29 @@ a.memorial-resting-place:hover {
 }
 
 .milestone-stack-section {
+  position: relative;
   overflow: hidden;
+  isolation: isolate;
+}
+
+.milestone-stack-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 14% 22%, color-mix(in srgb, var(--memorial-secondary) 20%, transparent) 0%, transparent 42%),
+    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--memorial-primary) 12%, transparent) 0%, transparent 40%),
+    radial-gradient(circle at 48% 84%, color-mix(in srgb, var(--memorial-tertiary) 72%, var(--memorial-secondary) 28%) 0%, transparent 56%);
+  opacity: 0.9;
+  transform: translate3d(0, 0, 0) scale(1);
+  animation: milestoneSectionThemeFade 20s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.milestone-stack-section > * {
+  position: relative;
+  z-index: 1;
 }
 
 .milestone-stack-track {
@@ -2232,6 +2296,24 @@ a.memorial-resting-place:hover {
 
 .milestone-stack-track::-webkit-scrollbar {
   display: none;
+}
+
+@keyframes milestoneSectionThemeFade {
+  0% {
+    transform: translate3d(-2%, -2%, 0) scale(1);
+    opacity: 0.76;
+    filter: saturate(0.96);
+  }
+  50% {
+    transform: translate3d(2%, 3%, 0) scale(1.04);
+    opacity: 0.92;
+    filter: saturate(1.03);
+  }
+  100% {
+    transform: translate3d(4%, -1%, 0) scale(1.07);
+    opacity: 0.8;
+    filter: saturate(0.98);
+  }
 }
 
 .preview-milestone {

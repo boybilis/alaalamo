@@ -516,6 +516,24 @@ function memorial_plan_limits(?array $memorial, ?array $qrGroup = null): array
     return plan_limits_for_type(memorial_plan_type($memorial, $qrGroup));
 }
 
+function requested_plan_type(string $value): string
+{
+    return $value === 'premium' ? 'premium' : 'regular';
+}
+
+function effective_memorial_plan_type(array $memorial, ?array $qrGroup, ?string $requestedPlanType = null): string
+{
+    if (($memorial['payment_status'] ?? 'pending') === 'paid') {
+        return memorial_plan_type($memorial, $qrGroup);
+    }
+
+    if ($requestedPlanType !== null && $requestedPlanType !== '') {
+        return requested_plan_type($requestedPlanType);
+    }
+
+    return memorial_plan_type($memorial, $qrGroup);
+}
+
 function additional_memorial_price_for_type(string $planType): int
 {
     return $planType === 'premium' ? 700 : 399;
@@ -1005,9 +1023,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $milestoneIdInput = (int) ($_POST['milestone_id'] ?? 0);
+        $requestedPlanType = requested_plan_type((string) ($_POST['plan_type'] ?? 'regular'));
 
         $stmt = $pdo->prepare(
-            'SELECT m.*
+            'SELECT m.*, me.plan_type AS memorial_plan_type, me.payment_status AS memorial_payment_status
              FROM milestones m
              INNER JOIN memorials me ON me.id = m.memorial_id
              WHERE m.id = ? AND me.user_id = ? AND me.qr_group_id = ?
@@ -1025,7 +1044,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
         }
 
-        $planLimits = plan_limits_for_type($targetMilestone['memorial_plan_type'] === 'premium' ? 'premium' : 'regular');
+        $effectivePlanType = effective_memorial_plan_type([
+            'plan_type' => $targetMilestone['memorial_plan_type'] ?? 'regular',
+            'payment_status' => $targetMilestone['memorial_payment_status'] ?? 'pending',
+        ], $qrGroup, $requestedPlanType);
+        $planLimits = plan_limits_for_type($effectivePlanType);
         $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM milestone_images WHERE milestone_id = ?');
         $existingCountStmt->execute([(int) $targetMilestone['id']]);
         $existingCount = (int) $existingCountStmt->fetchColumn();
@@ -1084,6 +1107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'ok' => $uploaded > 0,
                 'message' => $uploaded > 0 ? 'Milestone images uploaded.' : $uploadErrorMessage,
                 'html' => implode('', $uploadedHtml),
+                'count' => $existingCount + $uploaded,
+                'limit' => $planLimits['milestone_images'],
             ], $uploaded > 0 ? 200 : 422);
         }
 
@@ -1096,6 +1121,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             session_write_close();
         }
 
+        $requestedPlanType = requested_plan_type((string) ($_POST['plan_type'] ?? 'regular'));
+
         $stmt = $pdo->prepare(
             'SELECT * FROM memorials WHERE id = ? AND user_id = ? AND qr_group_id = ? LIMIT 1'
         );
@@ -1106,7 +1133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             json_response(['ok' => false, 'message' => 'Save the memorial details first before uploading profile photos.'], 422);
         }
 
-        $planLimits = memorial_plan_limits($targetMemorial, $qrGroup);
+        $planLimits = plan_limits_for_type(effective_memorial_plan_type($targetMemorial, $qrGroup, $requestedPlanType));
         $existingCountStmt = $pdo->prepare('SELECT COUNT(*) FROM memorial_images WHERE memorial_id = ? AND image_type = "profile"');
         $existingCountStmt->execute([(int) $targetMemorial['id']]);
         $existingCount = (int) $existingCountStmt->fetchColumn();
@@ -1951,6 +1978,45 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           return '';
         }
 
+        function currentPlanType() {
+          const value = $('select[name="plan_type"]').val();
+          return value === 'premium' ? 'premium' : 'regular';
+        }
+
+        function currentProfileImageLimit() {
+          return 5;
+        }
+
+        function currentMilestoneImageLimit() {
+          return currentPlanType() === 'premium' ? 6 : 2;
+        }
+
+        function refreshPlanAwareNotes() {
+          const milestoneLimit = currentMilestoneImageLimit();
+
+          $('[data-milestone-box]').each(function () {
+            const $box = $(this);
+            const $input = $box.find('[data-milestone-images]');
+            const $note = $input.siblings('.field-note');
+
+            if (!$input.length || !$note.length) {
+              return;
+            }
+
+            if ($input.is(':disabled')) {
+              $note.text('Save this milestone first, then upload images for it.');
+              return;
+            }
+
+            const currentText = ($note.text() || '').trim();
+            if (currentText.indexOf('milestone images used') !== -1) {
+              $note.text(currentText.replace(/of\s+\d+\s+milestone images used/i, 'of ' + milestoneLimit + ' milestone images used'));
+            } else {
+              $note.text('Maximum ' + milestoneLimit + ' images for this milestone. Upload JPG, PNG, or WebP photos under 3MB.');
+            }
+          });
+        }
+
         function milestoneCanGenerate($box) {
           return $box.find('[data-milestone-id]').val() !== '0' && $box.find('[data-milestone-description]').val().trim() !== '';
         }
@@ -2151,6 +2217,7 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           const $preview = $('[data-profile-preview]');
           const $status = $('[data-profile-status]');
           const $note = $('[data-profile-note]');
+          const profileImageLimit = currentProfileImageLimit();
 
           if (!memorialId) {
             setInlineStatus($status, 'Save the memorial details first before uploading profile photos.', 'error');
@@ -2171,6 +2238,7 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           formData.append('ajax', '1');
           formData.append('form_action', 'upload_profile_images');
           formData.append('memorial_id', memorialId);
+          formData.append('plan_type', currentPlanType());
 
           files.forEach(function (file) {
             formData.append('profile_images[]', file);
@@ -2208,13 +2276,15 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           const milestoneId = $box.find('[data-milestone-id]').val();
           const input = $box.find('[data-milestone-images]')[0];
           const files = Array.from(input.files || []);
+          const $note = $box.find('[data-milestone-images]').siblings('.field-note');
+          const milestoneImageLimit = currentMilestoneImageLimit();
 
           if (!milestoneId || milestoneId === '0') {
             setStatus($box, 'Save this milestone first.', 'error');
             return;
           }
 
-          const validationMessage = validateImageFiles(files, <?= (int) $planLimits['milestone_images'] ?>);
+          const validationMessage = validateImageFiles(files, milestoneImageLimit);
 
           if (validationMessage) {
             setStatus($box, validationMessage, 'error');
@@ -2222,45 +2292,44 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           }
 
           $button.prop('disabled', true);
-          uploadMilestoneFile(0, 0);
+          setStatus($box, 'Uploading ' + files.length + ' image' + (files.length === 1 ? '' : 's') + '...', 'success');
 
-          function uploadMilestoneFile(index, uploadedCount) {
-            if (index >= files.length) {
-              $(input).val('');
-              $button.prop('disabled', false);
-              setStatus($box, uploadedCount + ' image' + (uploadedCount === 1 ? '' : 's') + ' uploaded.', 'success');
-              return;
+          const formData = new FormData();
+          formData.append('ajax', '1');
+          formData.append('form_action', 'upload_milestone_images');
+          formData.append('memorial_id', memorialId);
+          formData.append('milestone_id', milestoneId);
+          formData.append('plan_type', currentPlanType());
+
+          files.forEach(function (file) {
+            formData.append('milestone_images[]', file);
+          });
+
+          $.ajax({
+            url: 'dashboard.php',
+            method: 'POST',
+            dataType: 'json',
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 90000
+          }).done(function (response) {
+            const $preview = $box.find('[data-milestone-preview]');
+            $preview.find('p').remove();
+            $preview.append(response.html || '');
+
+            if (response.count !== undefined && response.limit !== undefined) {
+              $note.text(response.count + ' of ' + response.limit + ' milestone images used. Upload JPG, PNG, or WebP photos under 3MB.');
             }
 
-            const formData = new FormData();
-            formData.append('ajax', '1');
-            formData.append('form_action', 'upload_milestone_images');
-            formData.append('memorial_id', memorialId);
-            formData.append('milestone_id', milestoneId);
-            formData.append('milestone_images[]', files[index]);
-
-            setStatus($box, 'Uploading image ' + (index + 1) + ' of ' + files.length + '...', 'success');
-
-            $.ajax({
-              url: 'dashboard.php',
-              method: 'POST',
-              dataType: 'json',
-              data: formData,
-              processData: false,
-              contentType: false,
-              timeout: 90000
-            }).done(function (response) {
-              const $preview = $box.find('[data-milestone-preview]');
-              $preview.find('p').remove();
-              $preview.append(response.html || '');
-              formData.delete('milestone_images[]');
-              uploadMilestoneFile(index + 1, uploadedCount + 1);
-            }).fail(function (xhr, textStatus) {
-              const timeoutMessage = 'Upload timed out on ' + files[index].name + '. Try a smaller JPG photo.';
-              setStatus($box, textStatus === 'timeout' ? timeoutMessage : ajaxErrorMessage(xhr, files[index].name + ' could not be uploaded. Try a JPG photo under 3MB.'), 'error');
-              $button.prop('disabled', false);
-            });
-          }
+            $(input).val('');
+            setStatus($box, response.message || 'Milestone images uploaded.', 'success');
+          }).fail(function (xhr, textStatus) {
+            const timeoutMessage = 'Upload timed out. Try uploading smaller JPG photos.';
+            setStatus($box, textStatus === 'timeout' ? timeoutMessage : ajaxErrorMessage(xhr, 'Milestone images could not be uploaded. Try JPG photos under 3MB.'), 'error');
+          }).always(function () {
+            $button.prop('disabled', false);
+          });
         });
 
         $('[data-delete-milestone]').on('click', function () {
@@ -2357,6 +2426,12 @@ foreach (array_slice($memorials, 1) as $additionalMemorial) {
           const cleanHref = href.replace(/([?&])requested_plan=[^&]*/g, '').replace(/[?&]$/, '');
           $(this).attr('href', cleanHref + separator + 'requested_plan=' + encodeURIComponent(planType));
         });
+
+        $('select[name="plan_type"]').on('change', function () {
+          refreshPlanAwareNotes();
+        });
+
+        refreshPlanAwareNotes();
       });
     </script>
   </body>
