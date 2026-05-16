@@ -2127,7 +2127,10 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
               <?= htmlspecialchars(count($memorials) > 1 ? 'Family Remembrance' : (trim((string) ($memorial['loved_one_name'] ?? 'Memorial Profile')) !== '' ? (string) $memorial['loved_one_name'] : 'Memorial Profile'), ENT_QUOTES, 'UTF-8') ?>
             </p>
           </div>
-          <div class="qr-actions-card">
+        <?php endif; ?>
+
+        <div class="qr-actions-card">
+          <?php if ($hasLiveMemorials && $qrUrl): ?>
             <div class="qr-panel-actions">
               <a class="button-primary" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Live Memorial</a>
               <a class="button-info" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
@@ -2137,58 +2140,37 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
             <?php if ($additionalCost > 0): ?>
               <p>Additional memorial total: PHP <?= number_format($additionalCost) ?> per year.</p>
             <?php endif; ?>
-            <?php if ($memorial && $isCurrentMemorialPaid && $currentMemorialExpiry): ?>
-              <div class="subscription-expiry <?= $currentMemorialCountdown && str_starts_with($currentMemorialCountdown, 'Expired') ? 'is-expired' : '' ?>">
-                <strong>Subscription expires on <?= htmlspecialchars($currentMemorialExpiry, ENT_QUOTES, 'UTF-8') ?></strong>
-                <?php if ($currentMemorialCountdown): ?>
-                  <span><?= htmlspecialchars($currentMemorialCountdown, ENT_QUOTES, 'UTF-8') ?></span>
-                <?php endif; ?>
-              </div>
-            <?php endif; ?>
-            <?php if ($memorial && !$isCurrentMemorialPaid): ?>
-              <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link>Activate this memorial</a>
-              <form class="voucher-activation-form" method="post" action="/dashboard.php?memorial_id=<?= (int) $memorial['id'] ?>">
-                <input type="hidden" name="form_action" value="activate_with_voucher">
-                <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
-                <label>
-                  Premium voucher code
-                  <input type="text" name="voucher_code" autocomplete="off" placeholder="Enter voucher code" required>
-                </label>
-                <button class="button-secondary" type="submit">Activate Account Using Voucher</button>
-                <span class="field-note"><?= $availableVoucherCount > 0 ? $availableVoucherCount . ' unused Premium voucher' . ($availableVoucherCount === 1 ? '' : 's') . ' available on this account.' : 'Voucher codes are emailed after every 5 qualified paid referrals.' ?></span>
-        </form>
-            <?php endif; ?>
-          </div>
-        <?php else: ?>
-          <div class="qr-actions-card">
+          <?php else: ?>
             <p>Your private preview is ready while payment is pending. The public QR code will be generated after activation.</p>
             <div class="qr-panel-actions">
               <a class="button-info" href="<?= htmlspecialchars($previewUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">Open Private Preview</a>
             </div>
-            <?php if ($memorial && $isCurrentMemorialPaid && $currentMemorialExpiry): ?>
-              <div class="subscription-expiry <?= $currentMemorialCountdown && str_starts_with($currentMemorialCountdown, 'Expired') ? 'is-expired' : '' ?>">
-                <strong>Subscription expires on <?= htmlspecialchars($currentMemorialExpiry, ENT_QUOTES, 'UTF-8') ?></strong>
-                <?php if ($currentMemorialCountdown): ?>
-                  <span><?= htmlspecialchars($currentMemorialCountdown, ENT_QUOTES, 'UTF-8') ?></span>
-                <?php endif; ?>
-              </div>
-            <?php endif; ?>
-            <?php if ($memorial): ?>
-              <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link>Complete payment</a>
-              <form class="voucher-activation-form" method="post" action="/dashboard.php?memorial_id=<?= (int) $memorial['id'] ?>">
-                <input type="hidden" name="form_action" value="activate_with_voucher">
-                <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
-                <label>
-                  Premium voucher code
-                  <input type="text" name="voucher_code" autocomplete="off" placeholder="Enter voucher code" required>
-                </label>
-                <button class="button-secondary" type="submit">Activate Account Using Voucher</button>
-                <span class="field-note"><?= $availableVoucherCount > 0 ? $availableVoucherCount . ' unused Premium voucher' . ($availableVoucherCount === 1 ? '' : 's') . ' available on this account.' : 'Voucher codes are emailed after every 5 qualified paid referrals.' ?></span>
-              </form>
-            <?php endif; ?>
             <p><?= count($memorials) ?> of <?= MAX_MEMORIALS_PER_QR ?> memorials prepared for this QR.</p>
-          </div>
-        <?php endif; ?>
+          <?php endif; ?>
+
+          <?php if ($memorial && $isCurrentMemorialPaid && $currentMemorialExpiry): ?>
+            <div class="subscription-expiry <?= $currentMemorialCountdown && str_starts_with($currentMemorialCountdown, 'Expired') ? 'is-expired' : '' ?>">
+              <strong>Subscription expires on <?= htmlspecialchars($currentMemorialExpiry, ENT_QUOTES, 'UTF-8') ?></strong>
+              <?php if ($currentMemorialCountdown): ?>
+                <span><?= htmlspecialchars($currentMemorialCountdown, ENT_QUOTES, 'UTF-8') ?></span>
+              <?php endif; ?>
+            </div>
+          <?php endif; ?>
+
+          <?php if ($memorial && !$isCurrentMemorialPaid): ?>
+            <a class="button-success billing-link" href="/billing.php?memorial_id=<?= (int) $memorial['id'] ?>" data-billing-link><?= $hasLiveMemorials && $qrUrl ? 'Activate this memorial' : 'Complete payment' ?></a>
+            <form class="voucher-activation-form" method="post" action="/dashboard.php?memorial_id=<?= (int) $memorial['id'] ?>">
+              <input type="hidden" name="form_action" value="activate_with_voucher">
+              <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+              <label>
+                Premium voucher code
+                <input type="text" name="voucher_code" autocomplete="off" placeholder="Enter voucher code" required>
+              </label>
+              <button class="button-secondary" type="submit">Activate Account Using Voucher</button>
+              <span class="field-note"><?= $availableVoucherCount > 0 ? $availableVoucherCount . ' unused Premium voucher' . ($availableVoucherCount === 1 ? '' : 's') . ' available on this account.' : 'Voucher codes are emailed after every 5 qualified paid referrals.' ?></span>
+            </form>
+          <?php endif; ?>
+        </div>
       </aside>
 
       <form class="memorial-form" method="post" action="dashboard.php" enctype="multipart/form-data">
