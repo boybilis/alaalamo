@@ -2052,7 +2052,12 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
         <h2>Family QR preview</h2>
         <?php if ($hasLiveMemorials && $qrUrl): ?>
           <div class="qr-preview-card">
-            <p class="qr-preview-kicker">SCAN WITH YOUR PHONE</p>
+            <div class="qr-preview-brand">
+              <span class="brand-mark" aria-hidden="true">
+                <img class="brand-mark-image" src="assets/alaalamo-logo-mark.png?v=<?= urlencode((string) (file_exists(__DIR__ . '/assets/alaalamo-logo-mark.png') ? filemtime(__DIR__ . '/assets/alaalamo-logo-mark.png') : time())) ?>" alt="">
+              </span>
+              <span class="brand-highlight">AlaalaMo</span>
+            </div>
             <a class="qr-preview-link" href="<?= htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8') ?>" target="alaalamo_preview" rel="noopener">
               <span class="qr-preview-shell">
                 <img src="<?= htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Memorial QR code">

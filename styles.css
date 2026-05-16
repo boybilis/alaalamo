@@ -1461,13 +1461,21 @@ h2 {
   text-align: left;
 }
 
-.qr-preview-kicker {
-  margin: 0;
+.qr-preview-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 auto;
   color: var(--accent-dark);
-  font-size: 12px;
+  font-size: 20px;
   font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+}
+
+.qr-preview-brand .brand-mark {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
 }
 
 .qr-preview-link {
