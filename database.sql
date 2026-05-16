@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS qr_groups (
   payment_requested_at DATETIME NULL,
   paid_at DATETIME NULL,
   payment_approval_token CHAR(64) NULL UNIQUE,
+  early_bird_upgraded_at DATETIME NULL,
+  early_bird_notice_shown_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX qr_groups_user_id_idx (user_id),

@@ -114,6 +114,10 @@ if (!defined('CLOUDINARY_API_SECRET')) {
     define('CLOUDINARY_API_SECRET', '');
 }
 
+if (!defined('EARLY_BIRD_REGULAR_UPGRADE_LIMIT')) {
+    define('EARLY_BIRD_REGULAR_UPGRADE_LIMIT', 50);
+}
+
 if (!function_exists('gemini_is_configured')) {
     function gemini_is_configured(): bool
     {
@@ -891,6 +895,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $qrGroup = ensure_qr_group((int) $user['id']);
     $planLimits = memorial_plan_limits(null, $qrGroup);
     $isAjax = is_ajax_request();
+
+    if ($formAction === 'dismiss_early_bird_notice') {
+        if ($memorialIdInput <= 0) {
+            redirect_to('/dashboard.php');
+        }
+
+        $stmt = $pdo->prepare(
+            'SELECT id FROM memorials
+             WHERE id = ? AND user_id = ? AND qr_group_id = ? AND early_bird_upgraded_at IS NOT NULL
+             LIMIT 1'
+        );
+        $stmt->execute([$memorialIdInput, (int) $user['id'], (int) $qrGroup['id']]);
+        $earlyBirdMemorialId = (int) $stmt->fetchColumn();
+
+        if ($earlyBirdMemorialId > 0) {
+            $pdo->prepare(
+                'UPDATE memorials
+                 SET early_bird_notice_shown_at = COALESCE(early_bird_notice_shown_at, NOW())
+                 WHERE id = ?'
+            )->execute([$earlyBirdMemorialId]);
+        }
+
+        redirect_to('/dashboard.php?memorial_id=' . $memorialIdInput);
+    }
 
     if ($formAction === 'activate_with_voucher') {
         $voucherCode = normalize_referral_code((string) ($_POST['voucher_code'] ?? ''));
@@ -1796,6 +1824,9 @@ $availableVoucherCountStmt = $pdo->prepare(
 );
 $availableVoucherCountStmt->execute([(int) $user['id']]);
 $availableVoucherCount = (int) $availableVoucherCountStmt->fetchColumn();
+$earlyBirdAwardedCountStmt = $pdo->query('SELECT COUNT(*) FROM memorials WHERE early_bird_upgraded_at IS NOT NULL');
+$earlyBirdAwardedCount = (int) $earlyBirdAwardedCountStmt->fetchColumn();
+$earlyBirdSlotsRemaining = max(0, EARLY_BIRD_REGULAR_UPGRADE_LIMIT - $earlyBirdAwardedCount);
 
 $selectedMemorialId = (int) ($_GET['memorial_id'] ?? 0);
 $memorial = null;
@@ -1898,6 +1929,9 @@ $hasLiveMemorials = count($paidMemorials) > 0;
 $isCurrentMemorialPaid = $memorial && (($memorial['payment_status'] ?? 'pending') === 'paid');
 $currentMemorialExpiry = memorial_expiration_label($memorial);
 $currentMemorialCountdown = memorial_expiration_countdown($memorial);
+$showEarlyBirdModal = $memorial
+    && !empty($memorial['early_bird_upgraded_at'])
+    && empty($memorial['early_bird_notice_shown_at']);
 $publicUrl = rtrim(app_base_url(), '/') . '/memorial.php?t=' . urlencode($qrGroup['public_token']);
 $previewUrl = $publicUrl . '&preview=1';
 $qrUrl = $hasLiveMemorials ? 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($publicUrl) : '';
@@ -1993,6 +2027,7 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
             </div>
             <span class="field-note">Need <?= $referredUsersToNextVoucher ?> more paid referral<?= $referredUsersToNextVoucher === 1 ? '' : 's' ?> for your next free Premium voucher.</span>
           </label>
+          <p class="field-note">Early bird regular-to-premium promo: <?= $earlyBirdSlotsRemaining ?> of <?= EARLY_BIRD_REGULAR_UPGRADE_LIMIT ?> upgrade slot<?= EARLY_BIRD_REGULAR_UPGRADE_LIMIT === 1 ? '' : 's' ?> remaining.</p>
         </div>
 
         <?php if ($flash): ?>
@@ -2482,6 +2517,24 @@ if (isset($_GET['download_qr']) && $hasLiveMemorials) {
         </div>
       </div>
     </main>
+    <?php if ($showEarlyBirdModal): ?>
+      <div class="early-bird-modal is-open" data-early-bird-modal aria-hidden="false">
+        <div class="early-bird-backdrop"></div>
+        <div class="early-bird-panel" role="dialog" aria-modal="true" aria-labelledby="earlyBirdTitle">
+          <p class="section-eyebrow">Early bird promo</p>
+          <h2 id="earlyBirdTitle">Your main memorial was upgraded to Premium.</h2>
+          <p>
+            Congratulations. Because you are part of the first <?= EARLY_BIRD_REGULAR_UPGRADE_LIMIT ?> paid regular users,
+            your main memorial account has been automatically upgraded to Premium at no extra cost.
+          </p>
+          <form method="post" action="/dashboard.php?memorial_id=<?= (int) $memorial['id'] ?>">
+            <input type="hidden" name="form_action" value="dismiss_early_bird_notice">
+            <input type="hidden" name="memorial_id" value="<?= (int) $memorial['id'] ?>">
+            <button class="button-primary" type="submit">Wonderful, continue</button>
+          </form>
+        </div>
+      </div>
+    <?php endif; ?>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script>
       $(function () {

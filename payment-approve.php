@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 require __DIR__ . '/config.php';
 
+if (!defined('EARLY_BIRD_REGULAR_UPGRADE_LIMIT')) {
+    define('EARLY_BIRD_REGULAR_UPGRADE_LIMIT', 50);
+}
+
 $token = clean_input($_GET['token'] ?? '');
 
 if ($token === '' || !preg_match('/^[a-f0-9]{64}$/', $token)) {
@@ -98,11 +102,35 @@ if (!$memorial) {
 $pdo->beginTransaction();
 
 try {
+    $firstMemorialStmt = $pdo->prepare('SELECT MIN(id) FROM memorials WHERE qr_group_id = ?');
+    $firstMemorialStmt->execute([(int) $memorial['qr_group_id']]);
+    $mainMemorialId = (int) $firstMemorialStmt->fetchColumn();
+    $isMainMemorial = $mainMemorialId > 0 && $mainMemorialId === (int) $memorial['id'];
+
     $pdo->prepare(
         'UPDATE memorials
          SET payment_status = "paid", paid_at = COALESCE(paid_at, NOW())
          WHERE id = ?'
     )->execute([(int) $memorial['id']]);
+
+    if (
+        $isMainMemorial
+        && ($memorial['plan_type'] ?? 'regular') === 'regular'
+        && empty($memorial['early_bird_upgraded_at'])
+    ) {
+        $earlyBirdCountStmt = $pdo->query('SELECT COUNT(*) FROM memorials WHERE early_bird_upgraded_at IS NOT NULL');
+        $earlyBirdAwardedCount = (int) $earlyBirdCountStmt->fetchColumn();
+
+        if ($earlyBirdAwardedCount < EARLY_BIRD_REGULAR_UPGRADE_LIMIT) {
+            $pdo->prepare(
+                'UPDATE memorials
+                 SET plan_type = "premium", early_bird_upgraded_at = NOW(), early_bird_notice_shown_at = NULL
+                 WHERE id = ?'
+            )->execute([(int) $memorial['id']]);
+            $memorial['plan_type'] = 'premium';
+            $memorial['early_bird_upgraded_at'] = date('Y-m-d H:i:s');
+        }
+    }
 
     if (!empty($memorial['qr_group_id'])) {
         $pdo->prepare(
